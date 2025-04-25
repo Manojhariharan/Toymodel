@@ -11,40 +11,40 @@ program toymodel
     !------------------------------------------------------------------!
     ! Parameters and constants
     !------------------------------------------------------------------!
-    integer, parameter 	:: nlayers = 3             	 ! Number of soil layers
-    real, parameter 	:: rho_SOM = 1.0             ! SOM density (g/cm3)
-    real, parameter 	:: rho_min = 1.5             ! Mineral soil density (g/cm3)
-    integer, parameter 	:: nsteps = 100            	 ! Number of time steps
-    real, parameter 	:: eps = 1.0e-5              ! Tolerance for conservation check
+    integer, parameter  :: nlayers = 3                   ! Number of soil layers
+    real, parameter     :: rho_SOM = 1.0                 ! SOM density (g/cm3)
+    real, parameter     :: rho_min = 1.5                 ! Mineral soil density (g/cm3)
+    integer, parameter  :: nsteps = 100                  ! Number of time steps
+    real, parameter     :: eps = 1.0e-5                  ! Tolerance for conservation check
 
     !------------------------------------------------------------------!
     ! Variables
     !------------------------------------------------------------------!
-    real, dimension(nlayers)     :: MSOM          	 ! SOM mass per layer (g/cm2)
-    real, dimension(nlayers)     :: Mmin          	 ! Mineral soil mass per layer (g/cm2)
-    real, dimension(nlayers)     :: dMSOM         	 ! SOM mass increment per layer (g/cm2)
-    real, dimension(nlayers)     :: dMmin         	 ! Mineral mass increment per layer (g/cm2)
-    real, dimension(nlayers+1)   :: z             	 ! Interface depths (cm)
-    real, dimension(nlayers+1)   :: z_initial     	 ! To store initial depths
+    real, dimension(nlayers)     :: MSOM                 ! SOM mass per layer (g/cm2)
+    real, dimension(nlayers)     :: Mmin                 ! Mineral soil mass per layer (g/cm2)
+    real, dimension(nlayers)     :: dMSOM                ! SOM mass increment per layer (g/cm2)
+    real, dimension(nlayers)     :: dMmin                ! Mineral mass increment per layer (g/cm2)
+    real, dimension(nlayers+1)   :: z                    ! Interface depths (cm)
+    real, dimension(nlayers+1)   :: z_initial            ! To store initial depths
 
-    real :: dz, dz_p                                 ! Actual and potential layer thicknesses (cm)
-    real :: f, mMSOM, mMmin                          ! Redistribution fractions and masses
-    real :: total_SOM_before, total_Mmin_before      ! Mass totals before update
-    real :: total_SOM_after, total_Mmin_after        ! Mass totals after update
-    real :: som_diff, min_diff						 ! Difference in mass before and after each timestep (g/cm2)
-    real :: total_SOM_initial, total_Mmin_initial	 ! Mass at the beginning of the simulation (g/cm2)
-    real :: total_SOM_final, total_Mmin_final		 ! Mass at the end of the simulation (g/cm2)
-    logical :: som_ok, min_ok						 ! Flag indicating whether mass was conserved
-    integer :: i, j                                  ! Loop indices
+    real :: dz, dz_p                                     ! Actual and potential layer thicknesses (cm)
+    real :: f, mMSOM, mMmin                              ! Redistribution fractions and masses
+    real :: total_SOM_before, total_Mmin_before          ! Mass totals before update
+    real :: total_SOM_after, total_Mmin_after            ! Mass totals after update
+    real :: som_diff, min_diff                           ! Difference in mass before and after each timestep (g/cm2)
+    real :: total_SOM_initial, total_Mmin_initial        ! Mass at the beginning of the simulation (g/cm2)
+    real :: total_SOM_final, total_Mmin_final            ! Mass at the end of the simulation (g/cm2)
+    logical :: som_ok, min_ok                            ! Flag indicating whether mass was conserved
+    integer :: i, j                                      ! Loop indices
 
     !------------------------------------------------------------------!
     ! Initialization
     !------------------------------------------------------------------!
-    MSOM = 1.0                                       ! Initial SOM mass in each layer (g/cm2)
-    Mmin = 1.0                                       ! Initial mineral soil mass in each layer (g/cm2)
-    dMSOM = 0.0										 ! Initialize SOM mass additions per layer to zero (g/cm2/timestep)
-    dMmin = 0.0										 ! Initialize mineral mass additions per layer to zero (g/cm2/timestep)
-    dMSOM(1) = 1.0                                   ! Add 1 g SOM to the top layer per time step (g/cm2/timestep)
+    MSOM = 1.0                                           ! Initial SOM mass in each layer (g/cm2)
+    Mmin = 1.0                                           ! Initial mineral soil mass in each layer (g/cm2)
+    dMSOM = 0.0                                          ! Initialize SOM mass additions per layer to zero (g/cm2/timestep)
+    dMmin = 0.0                                          ! Initialize mineral mass additions per layer to zero (g/cm2/timestep)
+    dMSOM(1) = 1.0                                       ! Add 1 g SOM to the top layer per time step (g/cm2/timestep)
 
     total_SOM_initial = sum(MSOM)
     total_Mmin_initial = sum(Mmin)

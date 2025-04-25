@@ -1,0 +1,14 @@
+ ===================================================
+                   FINAL SUMMARY
+ ===================================================
+ Initial interface depths (z):
+ z_initial =     0.00    1.67    3.33    5.00
+ Final interface depths (z):
+ z_final   =     0.00    1.67    3.33  105.00
+ Initial total SOM mass   =     3.0000
+ Final total SOM mass     =   103.0000
+ Initial total Mineral    =     3.0000
+ Final total Mineral      =     3.0000
+ SUCCESS: SOM mass conserved across all timesteps.
+ SUCCESS: Mineral mass conserved across all timesteps.
+ ===================================================

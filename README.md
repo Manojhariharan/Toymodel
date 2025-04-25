@@ -48,5 +48,5 @@ This documentation file.
 ### Using `gfortran`:
 
 ```bash
-gfortran -o peat peat.f90
-./peat
+gfortran -o toymodel toymodel.f90
+./toymodel

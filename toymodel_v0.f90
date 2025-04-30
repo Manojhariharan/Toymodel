@@ -12,7 +12,7 @@ program toymodel_v0
     integer, parameter :: nlayers = 1                  ! Number of layers
     real, parameter :: dt = 1.0                        ! Timestep (year)
     real, parameter :: input_rate = 0.2                ! SOM input (kg C/m2/year)
-    real, parameter :: k_decay = 0.05                  ! Decay rate (/year)
+    real, parameter :: k_decay = 0.000167              ! Updated decay rate (/year)
 
     !------------------------------------------------------------------!
     ! Variables

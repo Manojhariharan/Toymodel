@@ -8,11 +8,11 @@ program toymodel_v0
     !------------------------------------------------------------------!
     ! Parameters
     !------------------------------------------------------------------!
-    integer, parameter :: nyears = 100                 ! Simulation length (years)
+    integer, parameter :: nyears = 6000                ! Simulation length (years)
     integer, parameter :: nlayers = 1                  ! Number of layers
     real, parameter :: dt = 1.0                        ! Timestep (year)
-    real, parameter :: input_rate = 0.2                ! SOM input (kg C/m2/year)
-    real, parameter :: k_decay = 0.000167              ! Updated decay rate (/year)
+    real, parameter :: input_rate = 1.05               ! SOM input (kg C/m2/year)
+    real, parameter :: k_decay = 0.007                 ! Updated decay rate (/year)
 
     !------------------------------------------------------------------!
     ! Variables
@@ -24,7 +24,7 @@ program toymodel_v0
     !------------------------------------------------------------------!
     ! Initialization
     !------------------------------------------------------------------!
-    SOM = 1.0                                          ! Initial SOM for each layer
+    SOM = 0.0                                          ! Initial SOM for each layer
     write(*,'(a)') 'Year    SOM_C     Input    Respired'
 
     !------------------------------------------------------------------!

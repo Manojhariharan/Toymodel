@@ -77,8 +77,26 @@ Solving numerically gives:
 
 This decay rate provides a realistic simplification for single-pool dynamics, consistent with gradual but ongoing accumulation observed in modern Fenland peatlands.
 
----
+## Mass Conservation Check
 
+To verify the model conserves carbon mass, the model track total input, total CO₂ respiration, and final SOM stock over the full simulation period:
+The check was implemented in the code by summing:
+- Total litter input
+- Total C lost to respiration
+- Final SOM pool
+
+And verifying:
+Total Input ≈ Total Respired + Final SOM
+
+For the current parameters:
+ - Total C input: 6299.72 kg C/m²
+ - Total C respired: 6149.73 kg C/m²
+ - Final SOM stock: 150.00 kg C/m²
+ - Residual: -0.01 kg C/m²
+
+This may confirms that **carbon mass is conserved** to within 0.01 kg C/m2 over 6000 years, with minor discrepancy which is suspected due to floating point rounding.
+
+---
 
 Date: **2025-04-30**
 

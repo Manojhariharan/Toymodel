@@ -1,4 +1,4 @@
-2025-05-06
+Date: **2025-05-06**
 
 peat_v0 is the first version of a simple SOM decomposition model designed to simulate long-term carbon accumulation in peat soils. This version is deliberately minimal, developed to start the model framework with just the core components: **one layer, one SOM pool, one carbon input, and one decay (respiration) output**.
 
@@ -76,6 +76,105 @@ Solving numerically gives:
 - **k = 0.007 yr⁻¹**
 
 This decay rate provides a realistic simplification for single-pool dynamics, consistent with gradual but ongoing accumulation observed in modern Fenland peatlands.
+
+---
+
+
+Date: **2025-04-30**
+
+## Parameters and Justification
+
+| Parameter      | Value            | Description & Source                                       |
+|----------------|------------------|------------------------------------------------------------|
+| `input_rate`   | 0.2 kg C/m²/yr   | Chosen for testing. Roughly reflects a modest litter input rate for a semi-productive organic soil, e.g., in a partially rewet or degraded fen. This value is conservative; natural Fenland inputs are closer to 500–1000 g C/m²/yr (Packer et al., 2017; Stout, 1971). |
+| `k_decay`      | 0.000167 /yr     | **Updated decay constant** based on field data (see below). Much slower decay. |
+| `SOM_init`     | 1.0 kg C/m²      | Arbitrary initial condition for testing. As expected, the model converges to a steady-state stock of I/k = 4.0 kg C/m². |
+| `nyears`       | 100              | Run length chosen to approach equilibrium (~98% of steady state is reached in 88 years with this k). |
+
+---
+
+## Output
+
+The model prints annual values of:
+- SOM pool size (kg C m⁻²)
+- Input (kg C m⁻² yr⁻¹)
+- Respired carbon (kg C m⁻² yr⁻¹)
+
+This output allows for quick verification that the model behaves as expected and conserves mass.
+
+---
+
+## Results
+
+The result is shown in the graph below. The notable points from this implementation are:
+
+- The **original model** (`k = 0.05 yr⁻¹`) converges to an equilibrium of by ~90 years.
+- The **updated model** (`k = 0.000167 yr⁻¹`) accumulates slowly and remains far from equilibrium after 100 years.
+
+The attached figure shows 1) Original model and 2) Updated `k_decay` model:
+
+- **Left panel**: SOM pool (kg C m⁻²) over time.
+- **Right panel**: Annual respiration flux (kg C m⁻² yr⁻¹).
+
+**Original model**
+![SOM over time and respiration](Plots/Plot_v0.jpg)
+
+**Updated model**
+![SOM over time and respiration with updated k](Plots/Plot_v0_with_updated_k.jpg)
+
+---
+
+## Decay Constant Derivation (Updated)
+
+From field estimates:
+
+- **Peat C stock** ≈ 150 kg C/m²  
+- **Long-term C accumulation** ≈ 25 g C/m²/yr
+- Using: k = I / S = 0.025 / 150 ≈ 1.67 × 10⁻⁴ yr⁻¹
+
+This value matches literature estimates for long-term decay in catotelm peat (Yu, 2011; Clymo, 1984).
+
+---
+
+
+Date: **2025-04-30**
+
+## Parameters and Justification
+
+| Parameter      | Value       | Description & Source                                      |
+|----------------|-------------|------------------------------------------------------------|
+| `input_rate`   | 0.2 kg C/m²/yr | Chosen for testing. Roughly reflects a modest litter input rate for a semi-productive organic soil, e.g., in a partially rewet or degraded fen. This value is conservative; natural Fenland inputs are closer to 500–1000 g C/m²/yr (Packer et al., 2017; Stout, 1971). |
+| `k_decay`      | 0.05 /yr     | Represents a moderate SOM turnover rate, corresponding to a half-life of ~14 years. This is faster than passive peat but slower than active microbial pools. Chosen as a simplified representation of combined aerobic + anaerobic decay. |
+| `SOM_init`     | 1.0 kg C/m²  | Arbitrary initial condition for testing. As expected, the model converges to a steady-state stock of I/k = 4.0 kg C/m². |
+| `nyears`       | 100          | Run length chosen to approach equilibrium (~98% of steady state is reached in 88 years with this k). |
+
+---
+
+## Results
+
+The result is shown in the graph below. The notable points from this implementation are:
+
+- **SOM (Soil Organic Matter)** increases over time and asymptotically approaches a steady-state value of **4.0 kg C m⁻²**.
+- **Respiration flux** also increases over time and stabilizes at the same rate as the input (0.2 kg C m⁻² yr⁻¹), confirming the system reaches equilibrium.
+- The model reaches approximately **98% of equilibrium** by **year 88**, making 100 years a useful reference for steady-state behavior under these parameters.
+
+The attached figure shows:
+
+- **Left panel**: SOM pool (kg C m⁻²) over time.
+- **Right panel**: Annual respiration flux (kg C m⁻² yr⁻¹).
+
+![SOM over time and respiration](Plots/Plot_v0.jpg)
+
+---
+
+## Purpose
+
+This version is a **toy model**, used to:
+- Check that the code framework is working as expected.
+- Explore basic dynamics of SOM accumulation and loss.
+- Serve as a baseline before adding complexity (e.g., multiple pools, depth layers, or environmental controls).
+
+It is not yet parameterized for real-world Fenland peatlands. That will require updated values for input, decay rate, and time horizon based on observational data (see Yu, 2011; Waller, 1994; Peacock et al., 2019).
 
 ---
 

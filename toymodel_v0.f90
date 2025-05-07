@@ -1,7 +1,7 @@
 !======================================================================!
 ! Program: toymodel_v0
-! Purpose: Minimal 1-layer, 1-pool SOM model with structured timestep,
-!          correct dimensional units, and mass conservation check
+! Purpose: Minimal 1-layer, 1-pool SOM model with clearly structured
+!          flux -> rate -> update integration and mass conservation check
 !======================================================================!
 program toymodel_v0
     implicit none
@@ -14,9 +14,9 @@ program toymodel_v0
     !------------------------------------------------------------------!
     ! Simulation control parameters
     !------------------------------------------------------------------!
-    integer, parameter 	:: nyr = 6000                                  ! Total simulation duration (years)
+    integer, parameter  :: nyr = 6000                                  ! Total simulation duration (years)
     real(dp), parameter :: dt = 1.0_dp                                 ! Timestep (fraction of year; e.g., 0.25 = quarterly)
-    integer, parameter 	:: nsteps = nint(1.0_dp / dt)                  ! Number of sub-steps per year
+    integer, parameter  :: nsteps = nint(1.0_dp / dt)                  ! Number of sub-steps per year
     real(dp), parameter :: eps = 1.0d-8                                ! Mass conservation tolerance (kg C/m2)
 
     !------------------------------------------------------------------!
@@ -53,15 +53,19 @@ program toymodel_v0
         do it = 1, nsteps
             time = (kyr - 1) + it * dt                                 ! Current simulation time (years)
 
-            !----------------------------------------------------------!
-            ! Step 1: Store SOM before update
-            !----------------------------------------------------------!
+            !Store SOM before update
             SOM_before = SOM                                           ! SOM at start of timestep (kg C/m2)
 
             !----------------------------------------------------------!
-            ! Step 2: Compute net rate of SOM change (kg C/m2/year)
+            ! Step 1: Compute gross fluxes 
             !----------------------------------------------------------!
-            dSOM = input_rate - k_decay * SOM_before                   ! Net annual rate of change
+            litter = input_rate * dt                                   ! Litter input this step (kg C/m2/timestep)
+            resp   = k_decay * SOM_before * dt                         ! Respiration loss this step (kg C/m2/timestep)
+
+            !----------------------------------------------------------!
+            ! Step 2: Compute net rate of SOM change
+            !----------------------------------------------------------!
+            dSOM = input_rate - k_decay * SOM_before                   ! Net annual rate of change  (kg C/m2/year)
 
             !----------------------------------------------------------!
             ! Step 3: Update SOM with timestep-adjusted change
@@ -69,18 +73,12 @@ program toymodel_v0
             SOM = SOM_before + dt * dSOM                               ! SOM after update (kg C/m2)
 
             !----------------------------------------------------------!
-            ! Step 4: Compute actual timestep fluxes for output/checks
-            !----------------------------------------------------------!
-            litter = input_rate * dt                                   ! Litter input this step (kg C/m2/timestep)
-            resp   = k_decay * SOM_before * dt                         ! Respiration loss this step (kg C/m2/timestep)
-
-            !----------------------------------------------------------!
-            ! Step 5: Mass conservation check after SOM update
+            ! Step 4: Mass conservation check after SOM update
             !----------------------------------------------------------!
             SOM_after = SOM                                            ! SOM now updated
             mass_start = SOM_before + litter                           ! Total C before (kg C/m2)
-            mass_end   = SOM_after + resp                              ! Total C after (kg C/m2)
-            mass_error = abs(mass_end - mass_start)                    ! Error magnitude
+            mass_end   = SOM_after + resp							   ! Total C after (kg C/m2)
+            mass_error = abs(mass_end - mass_start)					   ! Error magnitude
 
             if (mass_error > eps) then
                 write(*,'(a,f6.2)') 'Mass conservation error at: ', time
@@ -90,13 +88,13 @@ program toymodel_v0
                 stop 'Mass not conserved'
             end if
 
-        end do                                                         ! End sub-timestep loop
+        end do														   ! End sub-timestep loop
 
         !--------------------------------------------------------------!
         ! Output at end of each year
         !--------------------------------------------------------------!
         write(*,'(i5,3f12.5)') kyr, SOM, litter, resp
-    end do                                                             ! End year loop
+    end do															   ! End year loop
 
 end program toymodel_v0
 !======================================================================!

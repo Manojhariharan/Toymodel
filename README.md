@@ -1,4 +1,4 @@
-**Date:** 2025-05-07
+**Date:** 2025-05-07  Update: Mass-Conserving Variable Timestep Version
 
 toymodel_v0 is the first version of a simple SOM decomposition model designed to simulate long-term carbon accumulation in peat soils. This version is deliberately minimal, developed to start the model framework with just the core components: **one layer, one SOM pool, one carbon input, and one decay (respiration) output**.
 
@@ -33,11 +33,22 @@ Integration is performed with a 1-year timestep.
 
 ## Mass Conservation
 
-At each timestep, the model checks that mass is conserved by verifying:
-mass_start = SOM + input
-mass_end = SOM_new + respiration
+The model now uses the update formulation
+SOM = SOM + dt * dSOM
+where `dSOM` is calculated as the net SOM rate of change per year (kg C m⁻² yr⁻¹), and `dt` is the timestep fraction.
+
+The mass conservation check is performed after the SOM update, using:
+mass_start = SOM_before + litter
+mass_end   = SOM_after + resp
 
 If `abs(mass_end - mass_start) > eps`, the model stops with diagnostic output. This ensures no loss/gain of carbon outside defined fluxes.
+
+These values are placed at the top and bottom of the timestep loop, respectively, to clearly bracket the state update and ensure transparency in mass accounting.
+
+Units used in the model:
+`dSOM`: kg C m⁻² yr⁻¹ (annual rate of SOM change)
+`litter`: kg C m⁻² timestep⁻¹
+`resp`: kg C m⁻² timestep⁻¹
 
 ---
 

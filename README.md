@@ -1,6 +1,6 @@
-Date: **2025-05-06**
+**Date:** 2025-05-07
 
-peat_v0 is the first version of a simple SOM decomposition model designed to simulate long-term carbon accumulation in peat soils. This version is deliberately minimal, developed to start the model framework with just the core components: **one layer, one SOM pool, one carbon input, and one decay (respiration) output**.
+toymodel_v0 is the first version of a simple SOM decomposition model designed to simulate long-term carbon accumulation in peat soils. This version is deliberately minimal, developed to start the model framework with just the core components: **one layer, one SOM pool, one carbon input, and one decay (respiration) output**.
 
 ---
 
@@ -18,6 +18,47 @@ Where:
 Integration is performed with a 1-year timestep.
 
 ---
+
+## Parameters and Units
+
+| Parameter     | Value         | Units             | Description                                               |
+|---------------|---------------|-------------------|-----------------------------------------------------------|
+| `input_rate`  | 1.05          | kg C/m²/year      | Annual NPP-derived litter input (Packer et al., 2017)     |
+| `k_decay`     | 0.007         | /year             | First-order decay constant (derived from peat data)       |
+| `dt`          | 1.0           | years             | Timestep length                                           |
+| `nsteps`      | 6000          | unitless          | Number of timesteps (= 6000 years / dt)                   |
+| `eps`         | 1.0e-8        | kg C/m²           | Tolerance for mass conservation per timestep              |
+
+---
+
+## Mass Conservation
+
+At each timestep, the model checks that mass is conserved by verifying:
+mass_start = SOM + input
+mass_end = SOM_new + respiration
+
+If `abs(mass_end - mass_start) > eps`, the model stops with diagnostic output. This ensures no loss/gain of carbon outside defined fluxes.
+
+---
+
+## Output
+
+The model prints one line of output per year and `dt` can be changed to improve numerical accuracy without changing the output structure.
+
+---
+
+## Version Notes
+
+This version satisfies the following:
+- Timestep-wise carbon mass conservation
+- Variable timestep control
+- Fully removes accumulated total tracking
+- Explicit SOM pool updates
+- Suitable for testing long-term peat C dynamics over millennia
+
+---
+
+Date: **2025-05-06**
 
 ## Parameters and Justification
 

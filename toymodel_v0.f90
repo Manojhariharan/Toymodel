@@ -1,7 +1,7 @@
 !======================================================================!
 ! Program: toymodel_v0
 ! Purpose: Minimal 1-layer, 1-pool SOM model with input and respiration
-!          includes per-timestep mass conservation check using double precision
+!          includes variable timestep and mass conservation check
 !======================================================================!
 program toymodel_v0
     implicit none
@@ -14,72 +14,62 @@ program toymodel_v0
     !------------------------------------------------------------------!
     ! Simulation parameters
     !------------------------------------------------------------------!
-    integer, parameter :: nyears = 6000                                ! Total simulation years (years)
-    real(dp), parameter :: input_rate = 1.05_dp                        ! SOM input (kg C/m2/year)
-    real(dp), parameter :: k_decay = 0.007_dp                          ! Decay rate (/year)
-    real(dp), parameter :: eps = 1.0e-8_dp                             ! Mass conservation tolerance
+    real(dp), parameter :: dt = 1.0_dp                                 ! Timestep length (years)
+    integer, parameter 	:: nsteps = int(6000.0_dp / dt)                ! Number of time steps (unitless)
+    real(dp), parameter :: input_rate = 1.05_dp                        ! SOM input rate (kg C/m2/year)
+    real(dp), parameter :: k_decay = 0.007_dp                          ! SOM decay rate (/year)
+    real(dp), parameter :: eps = 1.0d-8                            	   ! Tolerance for mass conservation (kg C/m2)
 
     !------------------------------------------------------------------!
     ! Carbon pool and flux variables
     !------------------------------------------------------------------!
-    real(dp) :: SOM                                                    ! SOM pool (kg C/m2)
-    real(dp) :: input, decay, respiration                              ! Annual input, decay, and respiration fluxes
-    real(dp) :: mass_start, mass_end, mass_error                       ! Mass conservation diagnostics
-    real(dp) :: total_input, total_respired                            ! Cumulative totals (kg C/m2)
+    real(dp) :: SOM                                                    ! Soil organic matter pool (kg C/m2)
+    real(dp) :: input, decay, respiration                              ! Input and loss fluxes (kg C/m2 per timestep)
+    real(dp) :: mass_start, mass_end, mass_error                       ! Mass conservation terms (kg C/m2)
 
     !------------------------------------------------------------------!
     ! Control variables
     !------------------------------------------------------------------!
-    integer :: t                                                       ! Current year in the simulation loop
+    integer  :: step                                                   ! Timestep counter (unitless)
+    real(dp) :: time                                                   ! Model time (years)
 
     !------------------------------------------------------------------!
     ! Initialization
     !------------------------------------------------------------------!
     SOM = 0.0_dp                                                       ! Initial SOM stock (kg C/m2)
-    total_input = 0.0_dp                                               ! Initialize input sum
-    total_respired = 0.0_dp                                            ! Initialize respiration sum
-    write(*,'(a)') 'Year    SOM_C     Input    Respired'
+    write(*,'(a)') 'Year    SOM_C     Input    Respired'               ! Header for output
 
     !------------------------------------------------------------------!
-    ! Simulation loop over years
+    ! Simulation loop over time steps
     !------------------------------------------------------------------!
-    do t = 1, nyears
-        input = input_rate                                             ! Annual litter input (kg C/m2)
-        decay = k_decay * SOM                                          ! First-order decay loss (kg C/m2)
-        respiration = decay                                            ! All decay results in respiration
+    do step = 1, nsteps
+        time = step * dt                                               ! Model time in years
 
-        mass_start = SOM + input                                       ! Mass before update (kg C/m2)
+        input = input_rate * dt                                        ! Carbon input during timestep (kg C/m2)
+        decay = k_decay * SOM * dt                                     ! Decomposition loss during timestep (kg C/m2)
+        respiration = decay                                            ! All loss assumed to be CO2 respiration
 
-        SOM = SOM + input - respiration                                ! Update SOM stock (kg C/m2)
-
-        mass_end = SOM + respiration                                   ! Mass after update (kg C/m2)
-        mass_error = abs(mass_end - mass_start)                        ! Difference from mass conservation (kg C/m2)
+        mass_start = SOM + input                                       ! Total C before update (kg C/m2)
+        mass_end = SOM + input - respiration + respiration             ! Total C after update (kg C/m2)
+        mass_error = abs(mass_end - mass_start)                        ! Difference (should be ~0) (kg C/m2)
 
         !--------------------------------------------------------------!
         ! Mass conservation check (per timestep)
         !--------------------------------------------------------------!
         if (mass_error > eps) then
-            write(*,'(a,i5)') 'Mass conservation error at year: ', t
-            write(*,'(a,f12.4)') 'Start mass = ', mass_start
-            write(*,'(a,f12.4)') 'End mass   = ', mass_end
-            write(*,'(a,f12.4)') 'Difference = ', mass_error
+            write(*,'(a,f8.2)') 'Mass conservation error at year: ', time
+            write(*,'(a,f12.6)') 'Start mass = ', mass_start
+            write(*,'(a,f12.6)') 'End mass   = ', mass_end
+            write(*,'(a,f12.6)') 'Difference = ', mass_error
             stop 'Mass not conserved'
         end if
 
-        total_input = total_input + input                              ! Total accumulated input (kg C/m2)
-        total_respired = total_respired + respiration                  ! Total accumulated respiration (kg C/m2)
+        SOM = SOM + input - respiration                                ! Update SOM pool (kg C/m2)
 
-        write(*,'(i4,3f12.4)') t, SOM, input, respiration
+        if (mod(step, int(1.0_dp / dt)) == 0) then                     ! Print once per year
+            write(*,'(f6.1,3f12.6)') time, SOM, input, respiration
+        end if
     end do
-
-    !------------------------------------------------------------------!
-    ! Final mass conservation summary
-    !------------------------------------------------------------------!
-    write(*,*)
-    write(*,'(a,f12.4)') 'Total C input:      ', total_input
-    write(*,'(a,f12.4)') 'Total C respired:   ', total_respired
-    write(*,'(a,f12.4)') 'Final SOM stock:    ', SOM
-    write(*,'(a,f12.4)') 'Residual: ', total_input - total_respired - SOM
 
 end program toymodel_v0
 !======================================================================!

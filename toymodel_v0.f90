@@ -1,7 +1,7 @@
 !======================================================================!
 ! Program: toymodel_v0
-! Purpose: Minimal 1-layer, 1-pool SOM model with clearly structured
-!          flux -> rate -> update integration and mass conservation check
+! Purpose: Minimal 1-layer, 1-pool SOM model with clear structure and
+!          mass conservation check (1 input, 1 decay, 1 pool)
 !======================================================================!
 program toymodel_v0
     implicit none
@@ -22,23 +22,20 @@ program toymodel_v0
     !------------------------------------------------------------------!
     ! Model parameters
     !------------------------------------------------------------------!
-    real(dp), parameter :: input_rate = 1.05_dp                        ! Annual litter input rate (kg C/m2/year)
+    real(dp), parameter :: input_rate = 1.05_dp                        ! Annual litter input (kg C/m2/year)
     real(dp), parameter :: k_decay = 0.007_dp                          ! Annual decay rate of SOM (/year)
 
     !------------------------------------------------------------------!
     ! State and flux variables
     !------------------------------------------------------------------!
     real(dp) :: SOM                                                    ! Soil organic matter pool (kg C/m2)
-    real(dp) :: SOM_before, SOM_after                                  ! SOM before and after update (kg C/m2)
-    real(dp) :: dSOM                                                   ! Net SOM rate of change (kg C/m2/year)
-    real(dp) :: litter, resp                                           ! Fluxes per timestep (kg C/m2/timestep)
+    real(dp) :: litter, resp, dSOM                                     ! Fluxes and change (kg C/m2/year)
     real(dp) :: mass_start, mass_end, mass_error                       ! Mass conservation diagnostics (kg C/m2)
 
     !------------------------------------------------------------------!
-    ! Loop counters and time
+    ! Loop counters
     !------------------------------------------------------------------!
-    integer :: kyr, it                                                 ! Loop counters: kyr = year, it = timestep
-    real(dp) :: time                                                   ! Simulation time (years)
+    integer :: kyr, it                                                 ! kyr = year, it = sub-timestep within year
 
     !------------------------------------------------------------------!
     ! Initialization
@@ -47,54 +44,53 @@ program toymodel_v0
     write(*,'(a)') 'Year    SOM_C     Input    Respired'               ! Output header
 
     !------------------------------------------------------------------!
-    ! Simulation loop: years and sub-steps
+    ! Simulation loop
     !------------------------------------------------------------------!
     do kyr = 1, nyr
         do it = 1, nsteps
-            time = (kyr - 1) + it * dt                                 ! Current simulation time (years)
-
-            !Store SOM before update
-            SOM_before = SOM                                           ! SOM at start of timestep (kg C/m2)
 
             !----------------------------------------------------------!
-            ! Step 1: Compute gross fluxes 
+            ! Mass at start: SOM plus expected input
             !----------------------------------------------------------!
-            litter = input_rate * dt                                   ! Litter input this step (kg C/m2/timestep)
-            resp   = k_decay * SOM_before * dt                         ! Respiration loss this step (kg C/m2/timestep)
+            mass_start = SOM + dt * input_rate                         ! Estimated total C before update (kg C/m2)
+
+            !----------------------------------------------------------!
+            ! Step 1: Compute gross fluxes
+            !----------------------------------------------------------!
+            litter = input_rate                                        ! Annual litter input rate (kg C/m2/year)
+            resp   = k_decay * SOM                                     ! Annual respiration rate (kg C/m2/year)
 
             !----------------------------------------------------------!
             ! Step 2: Compute net rate of SOM change
             !----------------------------------------------------------!
-            dSOM = input_rate - k_decay * SOM_before                   ! Net annual rate of change  (kg C/m2/year)
+            dSOM = litter - resp                                       ! Net annual rate of change  (kg C/m2/year)
 
             !----------------------------------------------------------!
-            ! Step 3: Update SOM with timestep-adjusted change
+            ! Step 3: Update SOM with timestep-adjusted change				
             !----------------------------------------------------------!
-            SOM = SOM_before + dt * dSOM                               ! SOM after update (kg C/m2)
+            SOM = SOM + dt * dSOM                                      ! SOM after update (kg C/m2)
 
             !----------------------------------------------------------!
-            ! Step 4: Mass conservation check after SOM update
+            ! Mass at end: SOM after update plus CO2 loss
             !----------------------------------------------------------!
-            SOM_after = SOM                                            ! SOM now updated
-            mass_start = SOM_before + litter                           ! Total C before (kg C/m2)
-            mass_end   = SOM_after + resp							   ! Total C after (kg C/m2)
-            mass_error = abs(mass_end - mass_start)					   ! Error magnitude
+            mass_end = SOM + dt * resp                                 ! Total C after (kg C/m2)
+            mass_error = abs(mass_end - mass_start)                    ! Error magnitude
 
             if (mass_error > eps) then
-                write(*,'(a,f6.2)') 'Mass conservation error at: ', time
+                write(*,'(a,i5)') 'Mass conservation error at year: ', kyr
                 write(*,'(a,f12.5)') 'Start mass = ', mass_start
                 write(*,'(a,f12.5)') 'End mass   = ', mass_end
                 write(*,'(a,f12.5)') 'Difference = ', mass_error
                 stop 'Mass not conserved'
             end if
 
-        end do														   ! End sub-timestep loop
+        end do                                                         ! End sub-timestep loop
 
         !--------------------------------------------------------------!
         ! Output at end of each year
         !--------------------------------------------------------------!
-        write(*,'(i5,3f12.5)') kyr, SOM, litter, resp
-    end do															   ! End year loop
+        write(*,'(i5,3f12.5)') kyr, SOM, input_rate * dt, k_decay * SOM * dt
+    end do                                                             ! End year loop
 
 end program toymodel_v0
 !======================================================================!

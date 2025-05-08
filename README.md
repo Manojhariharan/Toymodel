@@ -4,20 +4,26 @@
 |--------|-------------------|
 | `1.0`  | Annual            |
 | `0.5`  | Semi-annual       |
-| `0.25` | Quarterl          |
+| `0.25` | Quarterly         |
 | `0.1`  | Monthly           |
 | `0.01` | Near-daily        |
 
 ## Results
 
 The result is shown in the graph below. The notable points from this implementation are:
-
-- The **updated model** with parameters (`dt = 1.0/ 0.5/ 0.25/ 0.1/ 0.01`) mirrors that SOM dynamics are preserved for all reasonable dt, allowing both mass conservation and numerical stability across 
+- The **updated model** with parameters (`dt = 1.0/ 0.5/ 0.25/ 0.1/ 0.01`) mirrors that SOM dynamics are preserved for all reasonable dt, allowing both mass conservation and numerical stability across.
+- 
+The greatest differences across time steps (dt) were observed in:
+- **SOM** at Year 143, with a maximum difference of **0.19177** units across dt values.
+- **Respired Carbon** at Year 1745, with a maximum difference of **1.0395** units across dt values.
 
 The attached figure shows for multiple dt where 
 
 - **Left panel with blue line**: SOM pool (kg C m⁻²) over time.
 - **Right panel with red line**: Annual respiration flux (kg C m⁻² yr⁻¹).
+
+**Multiple dt plot**
+![SOM and respiration across various dt](Plots/Plot_v5.jpg)
 
 **600 years**
 ![SOM and respiration over first 600 years across various dt](Plots/Plot_v4a.jpg)

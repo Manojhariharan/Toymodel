@@ -77,7 +77,7 @@ program toymodel_v0
             mass_error = abs(mass_end - mass_start)                    ! Error magnitude
 
             if (mass_error > eps) then
-                write(*,'(a,i5)') 'Mass conservation error at year: ', kyr
+                write(*,'(a,i5)') 'Mass conservation error at year: ', kyr, ', step: ', it
                 write(*,'(a,f12.5)') 'Start mass = ', mass_start
                 write(*,'(a,f12.5)') 'End mass   = ', mass_end
                 write(*,'(a,f12.5)') 'Difference = ', mass_error

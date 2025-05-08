@@ -1,3 +1,32 @@
+**Date:** 2025-05-08  Update: Assessing mass conservation and numerical stability 
+
+| dt     | Description       |
+|--------|-------------------|
+| `1.0`  | Annual            |
+| `0.5`  | Semi-annual       |
+| `0.25` | Quarterl          |
+| `0.1`  | Monthly           |
+| `0.01` | Near-daily        |
+
+## Results
+
+The result is shown in the graph below. The notable points from this implementation are:
+
+- The **updated model** with parameters (`dt = 1.0/ 0.5/ 0.25/ 0.1/ 0.01`) mirrors that SOM dynamics are preserved for all reasonable dt, allowing both mass conservation and numerical stability across 
+
+The attached figure shows for multiple dt where 
+
+- **Left panel with blue line**: SOM pool (kg C m⁻²) over time.
+- **Right panel with red line**: Annual respiration flux (kg C m⁻² yr⁻¹).
+
+**600 years**
+![SOM and respiration over first 600 years across various dt](Plots/Plot_v4a.jpg)
+
+**Full period**
+![SOM and respiration over full time scale across various dt](Plots/Plot_v4.jpg)
+
+---
+
 **Date:** 2025-05-07  Update: Mass-Conserving Variable Timestep Version
 
 toymodel_v0 is the first version of a simple SOM decomposition model designed to simulate long-term carbon accumulation in peat soils. This version is deliberately minimal, developed to start the model framework with just the core components: **one layer, one SOM pool, one carbon input, and one decay (respiration) output**.

@@ -38,10 +38,19 @@ program toymodel_v0
     integer :: kyr, it                                                 ! kyr = year, it = sub-timestep within year
 
     !------------------------------------------------------------------!
+    ! Output file parameters
+    !------------------------------------------------------------------!
+    integer, parameter :: unit_out = 20                                ! File unit number
+    character(len=*), parameter :: outfile = 'Diagnostics.csv'         ! Output filename
+
+    open(unit=unit_out, file=outfile, status='replace', action='write')! Open file for writing
+    write(*,'(a)') 'Year    SOM_C     Input    Respired'               ! Output header - Screen
+    write(unit_out,'(a)') 'Year,SOM_C,input_C,respired_C'              ! Output header - file
+
+    !------------------------------------------------------------------!
     ! Initialization
     !------------------------------------------------------------------!
     SOM = 0.0_dp                                                       ! Initial SOM (kg C/m2)
-    write(*,'(a)') 'Year    SOM_C     Input    Respired'               ! Output header
 
     !------------------------------------------------------------------!
     ! Simulation loop
@@ -89,8 +98,12 @@ program toymodel_v0
         !--------------------------------------------------------------!
         ! Output at end of each year
         !--------------------------------------------------------------!
-        write(*,'(i5,3f12.5)') kyr, SOM, input_rate * dt, k_decay * SOM * dt
+        write(*,'(i5,3f12.5)') kyr, SOM, input_rate, k_decay * SOM
+        write(unit_out,'(i0,",",f12.5,",",f12.5,",",f12.5)') kyr, SOM, input_rate, k_decay * SOM
     end do                                                             ! End year loop
+    
+        close(unit_out)                                                ! Close file after writing
+        write(*,*) 'Simulation completed. Results saved to ', outfile
 
 end program toymodel_v0
 !======================================================================!

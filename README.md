@@ -1,3 +1,23 @@
+**Date:** 2025-05-09  Update: NEE diagnostics and conservation check to 2-layer SOM model
+
+This version of model introduces explicit layer-specific modeling for SSOM decomposition and NEE diagnostics and conservation checks
+
+**Key point**
+- Net Ecosystem Exchange (NEE) diagnostic for comparison with eddy flux data
+- Mass conservation checks at each timestep
+- Consistent with variable timestep lengths
+
+## Outputs
+
+- `Diagnostics.csv`: Yearly output including SOM per layer, input, respiration, and NEE
+- Console summary of total SOM, cumulative NEE, and conservation check (`SOM + NEE ≈ 0`)
+
+ Total SOM (kg C/m2)     :    150.00000
+ Cumulative NEE (kg C/m2):   -150.00000
+ Total (SOM + NEE)       :      0.00000
+
+---
+
 **Date:** 2025-05-09  Update: Two-layer SOM structure with layer speific calculations and mass-conservation
 
 This version of model introduces explicit layer-specific modeling for SSOM decomposition.

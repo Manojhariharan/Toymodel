@@ -1,3 +1,39 @@
+**Date:** 2025-05-09  Update: Numerical stability of resp for multiple dt and diagnostic output
+
+- Ran toymodel_v0 with multiple timestep values (dt = 1.0, 0.5, 0.25, 0.1, 0.01)
+- Fixed output to ensure respiration and input are reported as annual fluxes (not per timestep)
+- Saved results as diagnostics
+
+| dt     | Description       |
+|--------|-------------------|
+| `1.0`  | Annual            |
+| `0.5`  | Semi-annual       |
+| `0.25` | Quarterly         |
+| `0.1`  | Monthly           |
+| `0.01` | Near-daily        |
+
+## Results
+
+The result is shown in the graph below. The notable points from this implementation are:
+- The **updated model** with parameters (`dt = 1.0/ 0.5/ 0.25/ 0.1/ 0.01`) mirrors that SOM dynamics and respiration are preserved for all reasonable dt, allowing both mass conservation and numerical stability across.
+
+The greatest differences across time steps (dt) were observed in:
+- **SOM** at Year 143, with a maximum difference of **0.19177** across dt values (<0.2%).
+- **Respired Carbon** at Year 137, with a maximum difference of **0.00135** across dt values (<0.21%).
+
+The attached figure shows for multiple dt where 
+
+- **Left panel**: SOM pool (kg C m⁻²) over time.
+- **Right panel**: Annual respiration flux (kg C m⁻² yr⁻¹).
+
+**Multiple dt plot**
+![SOM and respiration across various dt](Plots/Plot_v6a.jpg)
+
+**Zoomed at the greatest diff**
+![SOM and respiration in their maximum diff across various dt](Plots/Plot_v6b.jpg)
+ 
+---
+
 **Date:** 2025-05-08  Update: Assessing mass conservation and numerical stability 
 
 | dt     | Description       |

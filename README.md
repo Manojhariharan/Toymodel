@@ -1,4 +1,22 @@
-**Date:** 2025-05-09  Update: Numerical stability of resp for multiple dt and diagnostic output
+**Date:** 2025-05-09  Update: Two-layer SOM structure with layer speific calculations and mass-conservation
+
+This version of model introduces explicit layer-specific modeling for SSOM decomposition.
+
+**Key point**
+- Implemented 2-layer structure: SOM and litter now dimensioned by soil layers (`nlayers = 2`).
+- Introduced a layer aware loop to compute litter input, respiration, and SOM update independently for each layer.
+- Replaced scalar SOM tracking with array-based structure and used sum(SOM(:)) for total system mass.
+- Added `resp_total` to aggregate respiration across layers and included it in the mass conservation calculation.
+- Verified timestep-wise mass conservation using `mass_start = sum(SOM(:)) + dt * input_rate` and `mass_end = sum(SOM(:)) + dt * resp_total`.
+
+Results consistency
+- SOM stock and respiration increase gradually over time in each layer and asymptotically reach equilibrium.
+- Output remains yearly, with results saved to Diagnostics.csv.
+- Behavior converges similarly to the original 1-layer model but now with layer-resolved dynamics and mass conservation.
+
+---
+
+Update: Numerical stability of resp for multiple dt and diagnostic output
 
 - Ran toymodel_v0 with multiple timestep values (dt = 1.0, 0.5, 0.25, 0.1, 0.01)
 - Fixed output to ensure respiration and input are reported as annual fluxes (not per timestep)

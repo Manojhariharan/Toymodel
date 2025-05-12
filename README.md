@@ -11,7 +11,7 @@
 | `dt`          | 1.0           | timestep          | Timestep length                                                       |
 | `nyr`         | 6000          | years             | Number of timesteps (= 6000 years / dt)                               |
 | `eps`         | 1.0e-8        | kg C/m²           | Tolerance for mass conservation per timestep                          |
-| `rho_SOM`     | 0.03          | kg C/m³           | Target SOM mass density                                               |
+| `rho_SOM`     | 60.0          | kg C/m³           | Target SOM mass density                                               |
 | `nlayers`     | 3             | mm                | Vertical soil layers with interface depths at `0`, `45`, and `91` mm  |
 
 ## SOM Redistribution
@@ -48,8 +48,8 @@ For each timestep and layer:
 
 | Diagnostics          | `dt = 1.00`   | `dt = 0.50`   | `dt = 0.25`   | `dt = 0.10`   | `dt = 0.01`   |
 |----------------------|---------------|---------------|---------------|---------------|---------------|
-| `Total SOM`          |  148.95248    |  149.47563    |  149.73766    |  149.89503    |  149.98950    |
-| `Cumulative NEE`     | -148.95248    | -149.47563    | -149.73766    | -149.89503    | -149.98950    |
+| `Total SOM`          |  149.01989    |  149.01989    |  149.01989    |  149.01989    |  149.01989    |
+| `Cumulative NEE`     | -149.01989    | -149.01989    | -149.01989    | -149.01989    | -149.01989    |
 | `SOM + NEE`          |   -0.00000    |   -0.00000    |   -0.00000    |   -0.00000    |   -0.00000    |
 
 ## Mass Conservation

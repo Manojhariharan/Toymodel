@@ -1,8 +1,8 @@
 !===============================================================================!
 ! Program: toymodel_v0
 ! Purpose: 3-layer, 1-pool SOM model with diagnostics for NEE and mass 
-!          conservation, with layer redistribution to maintain fixed SOM 
-!          mass-density targets
+!          conservation, with bidirectional redistribution to maintain fixed SOM 
+!          mass-density
 !===============================================================================!
 program toymodel_v0
     implicit none
@@ -25,7 +25,7 @@ program toymodel_v0
     !---------------------------------------------------------------------------!
     real(dp), parameter :: input_rate = 1.05_dp                                 ! Annual litter input (kg C/m2/year)
     real(dp), parameter :: k_decay = 0.007_dp                                   ! Annual decay rate of SOM (/year)
-    real(dp), parameter :: rho_SOM = 60.0_dp                                    ! Target SOM density (kg C/m3)
+    real(dp), parameter :: rho_SOM = 0.05_dp                                    ! SOM density (kg C/m2/mm); bulk density 50.0 kg/m3 -> convertd to kg/m2/mm
 
     !---------------------------------------------------------------------------!
     ! Soil layer depth and thickness
@@ -41,7 +41,9 @@ program toymodel_v0
     real(dp) :: resp_total, resp                                                ! Total and layer respiration (kg C/m2)																												  
     real(dp) :: mass_start, mass_end, mass_error                                ! Mass conservation diagnostics (kg C/m2)
     real(dp) :: nee, total_nee                                                  ! Net ecosystem exchange (kg C/m2/year)																										  
-    real(dp) :: SOM_want, SOM_delta                                             ! Redistribution diagnostics (kg C/m2)																												  
+    real(dp) :: SOM_want, SOM_delta                                             ! Redistribution diagnostics (kg C/m2)
+    real(dp) :: final_depth                                                     ! Estimated SOM depth based on rho_SOM (mm)
+
     !---------------------------------------------------------------------------!
     ! Loop counters
     !---------------------------------------------------------------------------!
@@ -57,7 +59,7 @@ program toymodel_v0
     write(*,'(a)') 'Year    SOM_C_L1  SOM_C_L2   SOM_C_L3   Input    Respired   NEE'       ! Output header - screen
     write(unit_out,'(a)') 'Year,SOM_C_L1,SOM_C_L2,SOM_C_L3,input_C,respired_C,NEE'         ! Output header - file
 
-    !---------------------------------------------------------------------------!
+    !---------------------------------------------------------------------------!          
     ! Initialization
     !---------------------------------------------------------------------------!
     SOM(:) = 0.0_dp                                                             ! Initial SOM per layer
@@ -65,7 +67,7 @@ program toymodel_v0
     
     z_interface = [0.0_dp, 45.0_dp, 91.0_dp, -999.0_dp]                         ! Define layer interfaces (mm)
     dz(1:nlayers-1) = z_interface(2:nlayers) - z_interface(1:nlayers-1)         ! Compute thickness of first two layers
-    dz(nlayers) = -1.0_dp                                                       ! Placeholder for bottomless layer
+    dz(nlayers) = 0.0_dp                                                        ! Placeholder for bottomless layer
 
     !---------------------------------------------------------------------------!
     ! Simulation loop
@@ -112,14 +114,19 @@ program toymodel_v0
                 !---------------------------------------------------------------!
                 ! Step 5: SOM redistribution (skip bottom layer)
                 !---------------------------------------------------------------!
-                if (ilayer /= nlayers .and. dz(ilayer) > 0.0_dp) then
-                    SOM_want = rho_SOM * dz(ilayer) / 1000.0_dp                 ! Target SOM (convert mm to m)
-                    
-                        if (SOM(ilayer) > SOM_want) then                        ! Only move SOM downward when there is excess, i.e., SOM(ilayer) > SOM_want
-                            SOM_delta = SOM(ilayer) - SOM_want                  ! Move excess SOM downward
-                            SOM(ilayer) = SOM(ilayer) - SOM_delta               ! Subtract excess SOM from current layer
-                            SOM(ilayer+1) = SOM(ilayer+1) + SOM_delta           ! Add excess to next (deeper) layer
+                if (ilayer /= nlayers) then
+                    SOM_want = rho_SOM * dz(ilayer)                             ! SOM density (kg C/m2/mm × mm) = kg C/m2
+                    SOM_delta = SOM(ilayer) - SOM_want                          ! Excess SOM to be adjusted; Positive = excess, Negative = deficit
+
+                        if (SOM_delta > 0.0_dp) then                            ! Excess SOM in current layer
+                            SOM(ilayer) = SOM(ilayer) - SOM_delta               ! Transfer excess SOM from current layer
+                            SOM(ilayer+1) = SOM(ilayer+1) + SOM_delta           ! Transfer excess to next (deeper) layer
                         
+                        else                                                    ! Deficit SOM in current layer
+                            SOM_delta = min(abs(SOM_delta), SOM(ilayer + 1))    ! Limit pull to what deeper layer can provide
+                            SOM(ilayer) = SOM(ilayer) + SOM_delta               ! Transfer the allowable amount to the current (shallower) layer
+                            SOM(ilayer + 1) = SOM(ilayer + 1) - SOM_delta       ! Subtract the same amount from the deeper layer
+
                         end if
 
                 end if
@@ -138,7 +145,9 @@ program toymodel_v0
             ! Compute NEE: net exchange with atmosphere 
             !-------------------------------------------------------------------!
             nee = resp_total - input_rate                                       ! Net flux with atmosphere (kg C/m2)
-            total_nee = total_nee + dt * nee                                    ! Accumulate NEE across time (kg C/m2)
+            
+            ! Accumulation of NEE will be handled post-simulation
+            ! total_nee = total_nee + dt * nee                                  ! Accumulate NEE across time (kg C/m2); 
 
             !-------------------------------------------------------------------!
             ! Mass at end: SOM after update plus CO2 loss
@@ -168,11 +177,16 @@ program toymodel_v0
     
     !---------------------------------------------------------------------------!
     ! Final diagnostics
-    !---------------------------------------------------------------------------!
+    !---------------------------------------------------------------------------!          
+    final_depth = sum(SOM(:)) / rho_SOM                                         ! Effective SOM column depth (mm)
+
     write(*,*)
-    write(*,'(a,f12.5)') ' Total SOM (kg C/m2)     : ', sum(SOM(:))             ! Accumulated SOM (kg C/m2)
-    write(*,'(a,f12.5)') ' Cumulative NEE (kg C/m2): ', total_nee               ! Total atmosphere exchange (kg C/m2)
-    write(*,'(a,f12.5)') ' Total (SOM + NEE)       : ', sum(SOM(:)) + total_nee ! Residual (should be ~0)
+    write(*,'(a,f12.5,a)') ' Estimated SOM depth : ', final_depth, ' mm'        ! SOM column depth (mm)
+    write(*,'(a,f12.5,a)') ' Total SOM           : ', sum(SOM(:)),  ' kg C/m2'  ! Accumulated SOM (kg C/m2)
+
+    ! NEE diagnostics will be handled post-simulation
+    ! write(*,'(a,f12.5)') ' Cumulative NEE (kg C/m2): ', total_nee                        ! Total atmosphere exchange (kg C/m2)
+    ! write(*,'(a,f12.5)') ' Total (SOM + NEE)       : ', sum(SOM(:)) + total_nee          ! Residual (should be ~0)
     write(*,*)
 
     close(unit_out)                                                             ! Close file after writing

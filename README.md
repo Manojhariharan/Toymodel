@@ -1,6 +1,17 @@
+**Date:** 2025-05-12  Update: NEE diagnostics and conservation check to 3-layer SOM model
+
+This version of model introduces a new layer for explicit layer-specific modeling for SOM decomposition and NEE diagnostics and conservation checks
+
+**Key point**
+- Implemented 3-layer structure: SOM and litter now dimensioned by soil layers (`nlayers = 3`).
+- Mass conservation checks at each timestep
+- Consistent with variable timestep lengths
+
+---
+
 **Date:** 2025-05-09  Update: NEE diagnostics and conservation check to 2-layer SOM model
 
-This version of model introduces explicit layer-specific modeling for SSOM decomposition and NEE diagnostics and conservation checks
+This version of model introduces explicit layer-specific modeling for SOM decomposition and NEE diagnostics and conservation checks
 
 **Key point**
 - Net Ecosystem Exchange (NEE) diagnostic for comparison with eddy flux data

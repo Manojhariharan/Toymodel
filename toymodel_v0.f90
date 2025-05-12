@@ -1,7 +1,8 @@
 !===============================================================================!
 ! Program: toymodel_v0
-! Purpose: Minimal 3-layer, 1-pool SOM model with clear structure and diagnostics 
-!		   for NEE and mass conservation
+! Purpose: 3-layer, 1-pool SOM model with diagnostics for NEE and mass 
+!          conservation, with layer redistribution to maintain fixed SOM 
+!          mass-density targets
 !===============================================================================!
 program toymodel_v0
     implicit none
@@ -19,12 +20,18 @@ program toymodel_v0
     integer, parameter  :: nsteps = nint(1.0_dp / dt)                           ! Number of sub-steps per year
     real(dp), parameter :: eps = 1.0d-8                                         ! Mass conservation tolerance (kg C/m2)
     integer, parameter  :: nlayers = 3                                          ! Number of soil layers																						  
-
     !---------------------------------------------------------------------------!
     ! Model parameters
     !---------------------------------------------------------------------------!
     real(dp), parameter :: input_rate = 1.05_dp                                 ! Annual litter input (kg C/m2/year)
     real(dp), parameter :: k_decay = 0.007_dp                                   ! Annual decay rate of SOM (/year)
+    real(dp), parameter :: rho_SOM = 0.03_dp                                    ! Target SOM density (kg C/m3)
+
+    !---------------------------------------------------------------------------!
+    ! Soil layer depth and thickness
+    !---------------------------------------------------------------------------!
+    real(dp), dimension(nlayers+1) :: z_interface                               ! Layer interface depths (mm)
+    real(dp), dimension(nlayers)   :: dz                                        ! Layer thickness (mm)
 
     !---------------------------------------------------------------------------!
     ! State and flux variables (arrays for layers)
@@ -34,7 +41,7 @@ program toymodel_v0
     real(dp) :: resp_total, resp                                                ! Total and layer respiration (kg C/m2)																												  
     real(dp) :: mass_start, mass_end, mass_error                                ! Mass conservation diagnostics (kg C/m2)
     real(dp) :: nee, total_nee                                                  ! Net ecosystem exchange (kg C/m2/year)																										  
-
+    real(dp) :: SOM_want, SOM_delta                                             ! Redistribution diagnostics (kg C/m2)																												  
     !---------------------------------------------------------------------------!
     ! Loop counters
     !---------------------------------------------------------------------------!
@@ -54,7 +61,11 @@ program toymodel_v0
     ! Initialization
     !---------------------------------------------------------------------------!
     SOM(:) = 0.0_dp                                                             ! Initial SOM per layer
-    total_nee = 0.0_dp                                                          ! Initialize NEE																							  
+    total_nee = 0.0_dp                                                          ! Initialize NEE
+    
+    z_interface = [0.0_dp, 45.0_dp, 91.0_dp, -999.0_dp]                         ! Define layer interfaces (mm)
+    dz(1:nlayers-1) = z_interface(2:nlayers) - z_interface(1:nlayers-1)         ! Compute thickness of first two layers
+    dz(nlayers) = -1.0_dp                                                       ! Placeholder for bottomless layer
 
     !---------------------------------------------------------------------------!
     ! Simulation loop
@@ -94,11 +105,28 @@ program toymodel_v0
                 SOM(ilayer) = SOM(ilayer) + dt * dSOM(ilayer)                   ! SOM after update (kg C/m2)
             
                 !---------------------------------------------------------------!
-                ! Accumulate total respiration				
+                ! Step 4: Accumulate total respiration				
                 !---------------------------------------------------------------!
                 resp_total = resp_total + resp                                  ! Accumulate respiration (kg C/m2)
 
+                !---------------------------------------------------------------!
+                ! Step 5: SOM redistribution (skip bottom layer)
+                !---------------------------------------------------------------!
+                if (ilayer /= nlayers .and. dz(ilayer) > 0.0_dp) then
+                    SOM_want = rho_SOM * dz(ilayer) / 1000.0_dp                 ! Target SOM (convert mm to m)
+                    SOM_delta = SOM(ilayer) - SOM_want                          ! Move excess SOM downward
+                    SOM(ilayer) = SOM(ilayer) - SOM_delta                       ! Subtract excess SOM from current layer
+                    SOM(ilayer+1) = SOM(ilayer+1) + SOM_delta                   ! Add excess to next (deeper) layer
+                end if
+
             end do                                                              ! End of layer loop
+
+            !-------------------------------------------------------------------!
+            ! Enforce non-negative SOM after redistribution
+            !-------------------------------------------------------------------!
+            do ilayer = 1, nlayers
+                if (SOM(ilayer) < 0.0_dp) SOM(ilayer) = 0.0_dp
+            end do
 
             !-------------------------------------------------------------------!
             ! Compute NEE: net exchange with atmosphere 

@@ -1,3 +1,64 @@
+**Date:** 2025-05-12  Update: 3-layer SOM model with depth-based redistribution and mass-density constraint
+
+## Model Configuration
+
+## Parameters and Units
+
+| Parameter     | Value         | Units             | Description                                                           |
+|---------------|---------------|-------------------|-----------------------------------------------------------------------|
+| `input_rate`  | 1.05          | kg C/m²/year      | Annual NPP-derived litter input (Packer et al., 2017)                 |
+| `k_decay`     | 0.007         | /year             | First-order decay constant (derived from peat data)                   |
+| `dt`          | 1.0           | timestep          | Timestep length                                                       |
+| `nyr`         | 6000          | years             | Number of timesteps (= 6000 years / dt)                               |
+| `eps`         | 1.0e-8        | kg C/m²           | Tolerance for mass conservation per timestep                          |
+| `rho_SOM`     | 0.03          | kg C/m³           | Target SOM mass density                                               |
+| `nlayers`     | 3             | mm                | Vertical soil layers with interface depths at `0`, `45`, and `91` mm  |
+
+## SOM Redistribution
+  - Each year, if a layer exceeds its target SOM stock (based on `dz` and `rho_SOM`), the excess is transferred to the next layer.
+  - Bottom layer has undefined thickness (`-1`) and absorbs all excess.
+
+## Flux Calculations
+For each timestep and layer:
+
+1. **Gross Fluxes:**
+   - Litter input divided equally across all layers
+   - Respiration calculated from SOM stock using `k_decay`
+
+2. **Net Change:**
+   - `dSOM = litter - respiration`
+
+3. **SOM Update:**
+   - `SOM = SOM + dt * dSOM`
+   - Redistribute if SOM exceeds density target (`SOM_want = rho_SOM * dz`)
+
+4. **Diagnostics:**
+   - `resp_total`: sum of respiration across layers
+   - `NEE = resp_total - input_rate`: net ecosystem exchange
+   - `mass_start` and `mass_end`: used to validate mass conservation at each timestep
+
+## Output and results
+
+- Printed annually to screen and written to `Diagnostics.csv`
+- Fields: `Year`, `SOM_L1`, `SOM_L2`, `SOM_L3`, `Input`, `Respired`, `NEE`
+- Final totals:
+  - Total SOM (kg C/m²)                   
+  - Cumulative NEE
+  - SOM + NEE (should ≈ 0 if conserved)
+
+| Diagnostics          | `dt = 1.00`   | `dt = 0.50`   | `dt = 0.25`   | `dt = 0.10`   | `dt = 0.01`   |
+|----------------------|---------------|---------------|---------------|---------------|---------------|
+| `Total SOM`          |  148.95248    |  149.47563    |  149.73766    |  149.89503    |  149.98950    |
+| `Cumulative NEE`     | -148.95248    | -149.47563    | -149.73766    | -149.89503    | -149.98950    |
+| `SOM + NEE`          |   -0.00000    |   -0.00000    |   -0.00000    |   -0.00000    |   -0.00000    |
+
+## Mass Conservation
+
+- A strict check (`eps = 1e-8`) ensures no gain or loss of carbon due to numerical error
+- Redistribution and timestep flexibility (via `dt`) are tested
+
+---
+
 **Date:** 2025-05-12  Update: NEE diagnostics and conservation check to 3-layer SOM model
 
 This version of model introduces a new layer for explicit layer-specific modeling for SOM decomposition and NEE diagnostics and conservation checks

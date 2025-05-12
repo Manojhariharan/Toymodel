@@ -25,7 +25,7 @@ program toymodel_v0
     !---------------------------------------------------------------------------!
     real(dp), parameter :: input_rate = 1.05_dp                                 ! Annual litter input (kg C/m2/year)
     real(dp), parameter :: k_decay = 0.007_dp                                   ! Annual decay rate of SOM (/year)
-    real(dp), parameter :: rho_SOM = 0.03_dp                                    ! Target SOM density (kg C/m3)
+    real(dp), parameter :: rho_SOM = 60.0_dp                                    ! Target SOM density (kg C/m3)
 
     !---------------------------------------------------------------------------!
     ! Soil layer depth and thickness
@@ -114,9 +114,14 @@ program toymodel_v0
                 !---------------------------------------------------------------!
                 if (ilayer /= nlayers .and. dz(ilayer) > 0.0_dp) then
                     SOM_want = rho_SOM * dz(ilayer) / 1000.0_dp                 ! Target SOM (convert mm to m)
-                    SOM_delta = SOM(ilayer) - SOM_want                          ! Move excess SOM downward
-                    SOM(ilayer) = SOM(ilayer) - SOM_delta                       ! Subtract excess SOM from current layer
-                    SOM(ilayer+1) = SOM(ilayer+1) + SOM_delta                   ! Add excess to next (deeper) layer
+                    
+                        if (SOM(ilayer) > SOM_want) then                        ! Only move SOM downward when there is excess, i.e., SOM(ilayer) > SOM_want
+                            SOM_delta = SOM(ilayer) - SOM_want                  ! Move excess SOM downward
+                            SOM(ilayer) = SOM(ilayer) - SOM_delta               ! Subtract excess SOM from current layer
+                            SOM(ilayer+1) = SOM(ilayer+1) + SOM_delta           ! Add excess to next (deeper) layer
+                        
+                        end if
+
                 end if
 
             end do                                                              ! End of layer loop
@@ -126,6 +131,7 @@ program toymodel_v0
             !-------------------------------------------------------------------!
             do ilayer = 1, nlayers
                 if (SOM(ilayer) < 0.0_dp) SOM(ilayer) = 0.0_dp
+
             end do
 
             !-------------------------------------------------------------------!
@@ -146,6 +152,7 @@ program toymodel_v0
                 write(*,'(a,f12.5)') 'End mass   = ', mass_end
                 write(*,'(a,f12.5)') 'Difference = ', mass_error
                 stop 'Mass not conserved'
+
             end if
 
         end do                                                                  ! End of sub-timestep loop
@@ -156,6 +163,7 @@ program toymodel_v0
         write(*,'(i5,6f12.5)') kyr, SOM(1), SOM(2), SOM(3), input_rate, resp_total, nee
         write(unit_out,'(i0,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",f12.5)') &
                 kyr, SOM(1), SOM(2), SOM(3), input_rate, resp_total, nee
+
     end do                                                                      ! End of year loop
     
     !---------------------------------------------------------------------------!

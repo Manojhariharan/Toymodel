@@ -1,6 +1,6 @@
 !===============================================================================!
 ! Program: toymodel_v0
-! Purpose: Minimal 2-layer, 1-pool SOM model with clear structure and diagnostics 
+! Purpose: Minimal 3-layer, 1-pool SOM model with clear structure and diagnostics 
 !		   for NEE and mass conservation
 !===============================================================================!
 program toymodel_v0
@@ -18,7 +18,7 @@ program toymodel_v0
     real(dp), parameter :: dt = 1.00_dp                                         ! Timestep (fraction of year; e.g., 0.25 = quarterly)
     integer, parameter  :: nsteps = nint(1.0_dp / dt)                           ! Number of sub-steps per year
     real(dp), parameter :: eps = 1.0d-8                                         ! Mass conservation tolerance (kg C/m2)
-    integer, parameter  :: nlayers = 2                                          ! Number of soil layers																						  
+    integer, parameter  :: nlayers = 3                                          ! Number of soil layers																						  
 
     !---------------------------------------------------------------------------!
     ! Model parameters
@@ -46,9 +46,9 @@ program toymodel_v0
     integer, parameter :: unit_out = 20                                         ! File unit number
     character(len=*), parameter :: outfile = 'Diagnostics.csv'                  ! Output filename
 
-    open(unit=unit_out, file=outfile, status='replace', action='write')         ! Open file for writing
-    write(*,'(a)') 'Year    SOM_C_L1  SOM_C_L2   Input    Respired   NEE'       ! Output header - screen
-    write(unit_out,'(a)') 'Year,SOM_C_L1,SOM_C_L2,input_C,respired_C,NEE'       ! Output header - file
+    open(unit=unit_out, file=outfile, status='replace', action='write')                    ! Open file for writing
+    write(*,'(a)') 'Year    SOM_C_L1  SOM_C_L2   SOM_C_L3   Input    Respired   NEE'       ! Output header - screen
+    write(unit_out,'(a)') 'Year,SOM_C_L1,SOM_C_L2,SOM_C_L3,input_C,respired_C,NEE'         ! Output header - file
 
     !---------------------------------------------------------------------------!
     ! Initialization
@@ -80,7 +80,7 @@ program toymodel_v0
                 !---------------------------------------------------------------!
                 ! Step 1: Compute gross fluxes
                 !---------------------------------------------------------------!
-                litter(ilayer) = input_rate / 2.0_dp                            ! Split annual litter input rate per layer (kg C/m2/year)
+                litter(ilayer) = input_rate / real(nlayers, dp)                 ! Split annual litter input rate per layer (kg C/m2/year)
                 resp = k_decay * SOM(ilayer)                                    ! Annual respiration rate per layer (kg C/m2/year)
 
                 !---------------------------------------------------------------!
@@ -88,7 +88,8 @@ program toymodel_v0
                 !---------------------------------------------------------------!
                 dSOM(ilayer) = litter(ilayer) - resp                            ! Net annual rate of change per layer (kg C/m2/year)
 
-                !---------------------------------------------------------------!							! Step 3: Update SOM with timestep-adjusted change				
+                !---------------------------------------------------------------!
+                ! Step 3: Update SOM with timestep-adjusted change				
                 !---------------------------------------------------------------!
                 SOM(ilayer) = SOM(ilayer) + dt * dSOM(ilayer)                   ! SOM after update (kg C/m2)
             
@@ -124,9 +125,9 @@ program toymodel_v0
         !-----------------------------------------------------------------------!																  
         ! Output at end of each year
         !-----------------------------------------------------------------------!
-        write(*,'(i5,5f12.5)') kyr, SOM(1), SOM(2), input_rate, resp_total, nee
-        write(unit_out,'(i0,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",f12.5)') &
-                kyr, SOM(1), SOM(2), input_rate, resp_total, nee
+        write(*,'(i5,6f12.5)') kyr, SOM(1), SOM(2), SOM(3), input_rate, resp_total, nee
+        write(unit_out,'(i0,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",f12.5)') &
+                kyr, SOM(1), SOM(2), SOM(3), input_rate, resp_total, nee
     end do                                                                      ! End of year loop
     
     !---------------------------------------------------------------------------!
@@ -135,7 +136,7 @@ program toymodel_v0
     write(*,*)
     write(*,'(a,f12.5)') ' Total SOM (kg C/m2)     : ', sum(SOM(:))             ! Accumulated SOM (kg C/m2)
     write(*,'(a,f12.5)') ' Cumulative NEE (kg C/m2): ', total_nee               ! Total atmosphere exchange (kg C/m2)
-    write(*,'(a,f12.5)') ' Total (SOM + NEE)       : ', sum(SOM(:)) + total_nee ! Residual (should be 0)
+    write(*,'(a,f12.5)') ' Total (SOM + NEE)       : ', sum(SOM(:)) + total_nee ! Residual (should be ~0)
     write(*,*)
 
     close(unit_out)                                                             ! Close file after writing

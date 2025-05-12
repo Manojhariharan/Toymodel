@@ -1,6 +1,48 @@
-**Date:** 2025-05-12  Update: 3-layer SOM model with depth-based redistribution and mass-density constraint
+**Date:** 2025-05-12  Update: Refactored SOM model with bidirectional redistribution, depth diagnostics, and testing
 
 ## Model Configuration
+- Bidirectional redistribution (both downward and upward) to maintain layer-specific SOM density.
+- Annual output diagnostics for:
+  - Layer-wise SOM (kg C/m²)
+  - Annual litter input and CO₂ respired
+  - NEE (net ecosystem exchange)
+- Final SOM column depth diagnostic and layer-by-layer depth estimation.
+- Strict mass balance check per timestep.
+
+### Test Scenarios
+
+| Test ID | Description            | Total Input (kg C/m²/yr) | Layer 1 | Layer 2 | Layer 3 |
+|---------|------------------------|---------------------------|---------|---------|---------|
+| Test 1  | Top-heavy input        | 1.05                      | 80%     | 15%     | 5%      |
+| Test 2  | Bottom-heavy input     | 1.05                      | 5%      | 15%     | 80%     |
+| Test 3  | Time-varying input     | 1.05 -> 0.35 -> 0.0         | 90%     | 10%     | 0%      |
+
+### Test Plots
+The attached figure shows 
+
+- **Left panel**: SOM pool for layers 1 and 2 (kg C m⁻²) over time.
+- **Middle panel**: SOM pool for layer 3 (Bottom) (kg C m⁻²) over time.
+- **Right panel**: Annual respiration flux (kg C m⁻² yr⁻¹).
+
+**Test scenario 1 (Top-heavy input:80%; 15%; 5%)**
+![SOM and respiration for test 1](Plots/Plotv7_Test_1.JPG)
+
+**Test scenario 2 (Bottom-heavy input:5%; 15%; 80%)**
+![SOM and respiration for test 2](Plots/Plotv7_Test_2.JPG)
+
+**Test scenario 3 (Time-varying input:90%; 10%; 0%)**
+![SOM and respiration for test 3](Plots/Plotv7_Test_3.JPG)
+
+### Output
+
+- `Diagnostics.csv`: Annual data on SOM layers, input, respiration, and NEE.
+- Final console diagnostics for current set parameters:
+  - Estimated SOM depth : 2979.99879 mm
+  - Total SOM           :  148.99994 kg C/m2
+ 
+---
+
+**Date:** 2025-05-12  Update: 3-layer SOM model with depth-based redistribution and mass-density constraint
 
 ## Parameters and Units
 

@@ -1,3 +1,95 @@
+**Date:** 2025-05-12  Multi-layer (9 layered) SOM model with bidirectional redistribution and time varying decacy rate
+
+This version implements a **multi-layer, 1-pool soil organic matter (SOM) model** with the following features:
+
+- 9 soil layers from surface to 5000 mm (based on hybrid's hydrological structure).
+- Updated Bi-directional redistribution of SOM across layers based on target SOM mass (density × thickness).
+- Time-varying decay:
+  - **Accumulation phase**: k₁ = 0.007 yr⁻¹ (years 1–1700)
+  - **Degradation phase**: k₂ = variable (≥1701).
+- Full **mass conservation diagnostics**.
+- Export of annual values for SOM content per layer, total respiration, etc.
+
+---
+
+## Layer Configuration
+
+| Layer | Interface Depths (mm) | Thickness (mm) |
+|-------|------------------------|----------------|
+| 1     | 0 – 45                 | 45             |
+| 2     | 45 – 91                | 46             |
+| 3     | 91 – 166               | 75             |
+| 4     | 166 – 289              | 123            |
+| 5     | 289 – 493              | 204            |
+| 6     | 493 – 829              | 336            |
+| 7     | 829 – 1383             | 554            |
+| 8     | 1383 – 2296            | 913            |
+| 9     | 2296 – 5000            | 2704           |
+
+---
+
+## Parameter Summary
+
+| Parameter     | Value           | Description & Source |
+|---------------|------------------|-----------------------|
+| `input_rate`  | 1.05 kg C/m²/yr  | Represents total NPP (above + belowground) in productive fens (Packer et al., 2017; Stout, 1971) |
+| `k₁_decay`    | 0.007 yr⁻¹       | Derived from steady-state accumulation matching 150 kg C/m² peat stock over 6000 years |
+| `k₂_decay`    | varies           | Simulates increasing degradation. Values used for testing: `0.010`, `0.014`, `0.021`, `0.035` yr⁻¹ |
+| `rho_SOM`     | 50.0 kg/m³       | Peat SOM bulk density (Evans et al., 2016) |
+
+--- 
+
+## Results Summary
+
+Final SOM stock and effective depth under different degradation rates:
+
+| Scenario             | `k₂_decay` (/yr) | Layer 1 (mm) | Layer 2 (mm) | Layer 3 (mm) | Layer 4 (mm) | Layer 5 (mm) | Layer 6 (mm) | Layer 7 (mm) | Layer 8 (mm) | Layer 9 (mm) | Total Depth (mm) | Total SOM (kg C/m²) |
+| -------------------- | ---------------- | ------------ | ------------ | ------------ | ------------ | ------------ | ------------ | ------------ | ------------ | ------------ | ---------------- | ------------------- |
+| No degradation       | 0.007            | 45.0         | 46.0         | 75.0         | 123.0        | 204.0        | 336.0        | 554.0        | 913.0        | 704.0        | **3000.0**       | **150.0**           |
+| Low degradation      | 0.010            | 45.0         | 46.0         | 75.0         | 123.0        | 204.0        | 336.0        | 554.0        | 717.0        | 0.0          | **2100.0**       | **105.0**           |
+| Moderate degradation | 0.014            | 45.0         | 46.0         | 75.0         | 123.0        | 204.0        | 336.0        | 554.0        | 117.0        | 0.0          | **1500.0**       | **75.0**            |
+| High degradation     | 0.021            | 45.0         | 46.0         | 75.0         | 123.0        | 204.0        | 336.0        | 168.67       | 2.33         | 0.0          | **1000.0**       | **50.0**            |
+| Extreme degradation  | 0.035            | 45.0         | 46.0         | 75.0         | 123.0        | 204.0        | 100.08       | 4.59         | 2.33         | 0.0          | **600.0**        | **30.0**            |
+
+
+Each test preserves mass and demonstrates how increased decay leads to a stratified SOM decline.
+
+## Updated to the redistribution: Implemented
+
+- Redistribution logic:
+  ```fortran
+  do i = 1, nlayers - 1
+      SOM_want = rho_SOM * dz(i) / 1000.0_dp
+      SOM_delta = min(SOM_want - SOM(i), SOM(i+1))
+      SOM(i)     = SOM(i) + SOM_delta
+      SOM(i + 1) = SOM(i + 1) - SOM_delta
+  end do
+
+This ensures redistribution works under any input/output configuration (growing or shrinking SOM pool).
+
+### Test Plots
+The attached figure shows 
+
+- **Left panel**: SOM pool for layers 1 - 9 (kg C m⁻²) over time.
+- **Right panel**: Annual respiration flux (kg C m⁻² yr⁻¹).
+
+**Test scenario 1 (No degradation after 1700: k₁ = k₂ = 0.007)**
+![SOM and respiration for test 1](Plots/Plot_v8_01No.JPG)
+
+**Test scenario 2 (Low degradation after 1700: k₂ = 0.010)**
+![SOM and respiration for test 2](Plots/Plot_v8_02Low.JPG)
+
+**Test scenario 3 (Moderate degradation after 1700: k₂ = 0.014)**
+![SOM and respiration for test 3](Plots/Plot_v8_03Mod.JPG)
+
+**Test scenario 4 (High degradation after 1700: k₂ = 0.021)**
+![SOM and respiration for test 4](Plots/Plot_v8_04High.JPG)
+
+**Test scenario 5 (Extreme degradation after 1700: k₂ = 0.035)**
+![SOM and respiration for test 5](Plots/Plot_v8_05Extrm.JPG)
+
+--- 
+
 **Date:** 2025-05-12  Update: Refactored SOM model with bidirectional redistribution, depth diagnostics, and testing
 
 ## Model Configuration

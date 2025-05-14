@@ -1,3 +1,41 @@
+**Date:** 2025-05-12  Multi-layer (9 layered) 2-pool (fast and slow) SOM model with bidirectional redistribution
+
+This version implements a **multi-layer, 2-pool soil organic matter (SOM) model for fast and slow decay rate** with the following features:
+- 9 soil layers from surface to 5000 mm (based on hybrid's hydrological structure).
+- Fast and slow SOM pools,
+- Layer-wise redistribution to maintain target SOM density,
+- Time-integrated diagnostics for mass conservation, net ecosystem exchange (NEE), and SOM depth.
+
+## Features
+
+- **Two-pool SOM decomposition**:
+  - Fast pool receives direct litter input.
+  - Fast pool decays to atmosphere (respiration) and to slow pool.
+  - Slow pool decays to atmosphere and partially returns to fast pool.    
+- **CENTURY-style flux partitioning** with user-defined decay constants and CO₂ loss fractions.
+- **Layered SOM redistribution** conserves mass and mimics vertical diffusion or mixing.
+- **Diagnostics** include:
+  - Total SOM,
+  - Effective SOM depth,
+  - Mass conservation checks,
+  - Annual net ecosystem exchange (NEE).
+
+## Model Parameters
+
+| Parameter       | Description                                | Current Value | Proposed value |
+|----------------|---------------------------------------------|---------------|----------------|
+| `nyr`          | Number of years to simulate                 | 6000          |6000          |
+| `nlayers`      | Number of soil layers                       | 9             |9             |
+| `input_rate`   | Annual carbon input (kg C/m²/yr)            | 1.05          |1.05          |
+| `k_fast`       | Fast pool decay rate (/yr)                  | 0.007         |0.07          |
+| `k_slow`       | Slow pool decay rate (/yr)                  | 0.007         |0.00167       |
+| `fCO2_fast`    | Fraction of fast pool decay lost as CO₂     | 1.0           |0.55          |
+| `fCO2_slow`    | Fraction of slow pool decay lost as CO₂     | 1.0           |0.55          |
+| `rho_SOM`      | Target SOM density (kg C/m³)                | 50.0          |50.0          |
+| `EM`           | Environmental modifier (dimensionless)      | 1.0           |1.0           |
+
+---
+
 **Date:** 2025-05-12  Multi-layer (9 layered) SOM model with bidirectional redistribution and time varying decacy rate
 
 This version implements a **multi-layer, 1-pool soil organic matter (SOM) model** with the following features:

@@ -4,7 +4,7 @@
 !          CENTURY-style decomposition (fast and slow pools), and
 !          redistribution to maintain target SOM density.
 !===============================================================================!
-program toymodel_v2
+program toymodel_v1
     implicit none
 
     !---------------------------------------------------------------------------!
@@ -195,5 +195,5 @@ program toymodel_v2
     close(unit_out)                                                             ! Close output file
     write(*,*) 'Simulation complete. Results saved to ', outfile
 
-end program toymodel_v2
+end program toymodel_v1
 !===============================================================================!

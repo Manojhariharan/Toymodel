@@ -1,5 +1,5 @@
 !===============================================================================!
-! Program: toymodel_v2
+! Program: toymodel_v1
 ! Purpose: Multi-layer, 2-pool SOM model with mass conservation diagnostics,
 !          CENTURY-style decomposition (fast and slow pools), and
 !          redistribution to maintain target SOM density.
@@ -35,10 +35,8 @@ program toymodel_v1
     !---------------------------------------------------------------------------!
     ! Soil layer depth and thickness (mm)
     !---------------------------------------------------------------------------!
-    real(dp), dimension(nlayers+1) :: z_interface = [0.0_dp, 45.0_dp, 91.0_dp, &! Layer interfaces
-                                                     166.0_dp, 289.0_dp, 493.0_dp, &
-                                                     829.0_dp, 1383.0_dp, &
-                                                     2296.0_dp, 5000.0_dp]       
+    real(dp), dimension(nlayers+1) :: z_interface = [0.0_dp, 45.0_dp, 91.0_dp, &
+        166.0_dp, 289.0_dp, 493.0_dp, 829.0_dp, 1383.0_dp, 2296.0_dp, 9999.0_dp]! Layer interfaces
     real(dp), dimension(nlayers)   :: dz                                        ! Layer thicknesses (computed from interfaces)
 
     !---------------------------------------------------------------------------!
@@ -66,13 +64,13 @@ program toymodel_v1
 
     open(unit=unit_out, file=outfile, status='replace', action='write')         ! Open output file for writing
     
-    write(unit_out,'(a)') 'Year,' // 'SOMf_L1,SOMf_L2,SOMf_L3,SOMf_L4,' // &    ! Output header - file
-                          'SOMf_L5,SOMf_L6,SOMf_L7,SOMf_L8,SOMf_L9,SOMs_L1,' // &
-                          'SOMs_L2,SOMs_L3,SOMs_L4,SOMs_L5,SOMs_L6,SOMs_L7,' // &
-                          'SOMs_L8,SOMs_L9,Input,Respired,NEE,TotalDepth'
+    write(unit_out,'(a)') 'Year,' // 'SOMf_L1,SOMf_L2,SOMf_L3,SOMf_L4,' // &    
+        'SOMf_L5,SOMf_L6,SOMf_L7,SOMf_L8,SOMf_L9,SOMs_L1,SOMs_L2,SOMs_L3,' // &
+        'SOMs_L4,SOMs_L5,SOMs_L6,SOMs_L7,SOMs_L8,SOMs_L9,Input,Respired,' // &
+        'NEE,TotalDepth'                                                        ! Output header - file
     
-    write(*,'(a)') 'Year    SOM_fast_L1 SOM_fast_L2 ... SOM_slow_L9 ' // &      ! Output header - screen
-                   'Input Respired NEE TotalDepth'
+    write(*,'(a)') 'Year    SOM_fast_L1 SOM_fast_L2 ... SOM_slow_L9 Input ' // &      
+        'Respired NEE TotalDepth'                                               ! Output header - screen
 
     !---------------------------------------------------------------------------!
     ! Initialization
@@ -98,10 +96,13 @@ program toymodel_v1
             resp_total = 0.0_dp                                                 ! Reset total respiration
 
             !-------------------------------------------------------------------!
-            ! Step 1: Compute layer wise decomposition fluxes
+            ! Layer wise SOM calculation
             !-------------------------------------------------------------------!
             do ilayer = 1, nlayers
 
+                !---------------------------------------------------------------!
+                ! Step 1: Compute decomposition fluxes
+                !---------------------------------------------------------------!
                 litter(ilayer)      = input_rate / real(nlayers, dp)            ! Evenly distribute input across layers  (kg C/m2/year)
 
                 decomp_fast(ilayer) = EM * k_fast * SOM_fast(ilayer)            ! Fast pool decomposition flux (kg C/m2/year)
@@ -109,38 +110,41 @@ program toymodel_v1
                 
                 resp_fast(ilayer)   = fCO2_fast * decomp_fast(ilayer)           ! Fast pool respiration (kg C/m2)
                 resp_slow(ilayer)   = fCO2_slow * decomp_slow(ilayer)           ! Slow pool respiration (kg C/m2)
-                resp_total = resp_total + resp_fast(ilayer) + resp_slow(ilayer) ! Accumulate respiration (kg C/m2)
-            end do
 
-            !-------------------------------------------------------------------!
-            ! Step 2: Compute net rate of SOM change (Net annual rate of change per layer; kg C/m2/year)
-            !-------------------------------------------------------------------!
-            do ilayer = 1, nlayers
+                !---------------------------------------------------------------!
+                ! Step 2: Compute net rate of SOM change (Net annual rate of change per layer; kg C/m2/year)
+                !---------------------------------------------------------------!
+                dSOM_fast(ilayer) = litter(ilayer) + (1.0_dp - fCO2_slow) * &
+                    decomp_slow(ilayer) - decomp_fast(ilayer)                   ! Net change in fast SOM pool (kg C/m2/year)
                 
-                dSOM_fast(ilayer) = litter(ilayer) + (1.0_dp - fCO2_slow) * decomp_slow(ilayer) - decomp_fast(ilayer)   ! Net change in fast SOM pool (kg C/m2/year)
-                dSOM_slow(ilayer) = (1.0_dp - fCO2_fast) * decomp_fast(ilayer) - decomp_slow(ilayer)                    ! Net change in slow SOM pool (kg C/m2/year)
-            end do
+                dSOM_slow(ilayer) = (1.0_dp - fCO2_fast) * decomp_fast(ilayer) - &
+                    decomp_slow(ilayer)                                         ! Net change in slow SOM pool (kg C/m2/year)
 
-            !-------------------------------------------------------------------!
-            ! Step 3: Update SOM state (Updated SOM pools; kg C/m2)
-            !-------------------------------------------------------------------!
-            do ilayer = 1, nlayers
-                
+                !---------------------------------------------------------------!
+                ! Step 3: Update SOM state (Updated SOM pools; kg C/m2)
+                !---------------------------------------------------------------!
                 SOM_fast(ilayer) = SOM_fast(ilayer) + dt * dSOM_fast(ilayer)    ! Apply timestep-adjusted net change to fast SOM pool
                 SOM_slow(ilayer) = SOM_slow(ilayer) + dt * dSOM_slow(ilayer)    ! Apply timestep-adjusted net change to slow SOM pool
-            end do
+
+                !---------------------------------------------------------------!
+                ! Step 4: Accumulate total respiration				
+                !---------------------------------------------------------------!
+                resp_total = resp_total + resp_fast(ilayer) + resp_slow(ilayer) ! Accumulate respiration (kg C/m2)
+
+                end do
 
             !-------------------------------------------------------------------!
-            ! Step 4: SOM redistribution ((bidirectional, mass-conserving)
+            ! SOM redistribution ((bidirectional, mass-conserving)
             !-------------------------------------------------------------------!
             do ilayer = 1, nlayers - 1
                 
                 SOM_want  = rho_SOM * dz(ilayer) / 1000.0_dp                    ! Target SOM mass (kg C/m2) based on density (kg/m3) and layer thickness (mm to m)
-                SOM_delta = min(SOM_want - (SOM_fast(ilayer)+SOM_slow(ilayer)), &
-                                 SOM_fast(ilayer+1) + SOM_slow(ilayer+1))       ! SOM to redistribute: positive if deficit in current layer, limited by donor pool
+                SOM_delta = min(SOM_want - (SOM_fast(ilayer) + SOM_slow(ilayer)), &
+                    SOM_fast(ilayer+1) + SOM_slow(ilayer+1))                    ! SOM to redistribute: positive if deficit in current layer, limited by donor pool
                 
                 SOM_slow(ilayer)   = SOM_slow(ilayer) + SOM_delta               ! Receive SOM in slow pool if deficit, give SOM if excess (mass-conserving adjustment)
                 SOM_slow(ilayer+1) = SOM_slow(ilayer+1) - SOM_delta             ! Mirror adjustment to adjacent (deeper) layer
+            
             end do
 
             !-------------------------------------------------------------------!
@@ -149,18 +153,18 @@ program toymodel_v1
             nee = resp_total - input_rate                                       ! Net flux with atmosphere (kg C/m2)
 
             !-------------------------------------------------------------------!
-            ! Step 5: Mass conservation diagnostics
+            ! Mass conservation diagnostics
             !-------------------------------------------------------------------!
             mass_end = sum(SOM_fast(:)) + sum(SOM_slow(:)) + dt * resp_total    ! Total C after update (kg C/m2)
             mass_error = abs(mass_end - mass_start)                             ! Error magnitude		
             
             if (mass_error > eps) then
-                
                 write(*,'(a,i5)') 'Mass conservation error at year: ', kyr
                 write(*,'(a,f12.5)') 'Start mass = ', mass_start
                 write(*,'(a,f12.5)') 'End mass   = ', mass_end
                 write(*,'(a,f12.5)') 'Difference = ', mass_error
                 stop 'Mass not conserved'
+            
             end if
 
         end do                                                                  ! End of sub-timestep loop
@@ -171,10 +175,10 @@ program toymodel_v1
         final_depth = sum(SOM_fast(:)+SOM_slow(:)) / rho_SOM * 1000.0_dp        ! Total SOM depth based on sum of pools (mm)
 
         write(*,'(i5,27f12.5)') kyr, SOM_fast(:), SOM_slow(:), input_rate, &
-                                resp_total, nee, final_depth
+            resp_total, nee, final_depth
         
          write(unit_out,'(i0,",",27(f12.5,","),f12.5)') kyr, SOM_fast(:), &
-                        SOM_slow(:), input_rate, resp_total, nee, final_depth
+            SOM_slow(:), input_rate, resp_total, nee, final_depth
 
     end do                                                                      ! End of year loop
 
@@ -183,13 +187,16 @@ program toymodel_v1
     !---------------------------------------------------------------------------!
     write(*,*)
     do ilayer = 1, nlayers                                                      ! Depth of SOM in layer i (mm)
-
-        write(*,'(a,i1,a,f12.5,a)') ' Layer ', ilayer, ' depth   : ', (SOM_fast(ilayer)+SOM_slow(ilayer))/rho_SOM * 1000.0_dp, ' mm' 
+        write(*,'(a,i1,a,f12.5,a)') ' Layer ', ilayer, ' depth   : ', &
+            (SOM_fast(ilayer)+SOM_slow(ilayer))/rho_SOM * 1000.0_dp, ' mm' 
+    
     end do
 
     write(*,*)
-    write(*,'(a,f12.5,a)') ' Total SOM depth : ', final_depth, ' mm'                            ! SOM column depth (mm)
-    write(*,'(a,f12.5,a)') ' Total SOM       : ', sum(SOM_fast(:)+SOM_slow(:)), ' kg C/m2'      ! Total SOM stock across all layers (kg C/m2)
+    write(*,'(a,f12.5,a)') ' Total SOM depth : ', final_depth, ' mm'            ! SOM column depth (mm)
+    write(*,'(a,f12.5,a)') ' Total SOM       : ', sum(SOM_fast(:) + SOM_slow(:)), &
+        ' kg C/m2'                                                              ! Total SOM stock across all layers (kg C/m2)
+    
     write(*,*)
 
     close(unit_out)                                                             ! Close output file

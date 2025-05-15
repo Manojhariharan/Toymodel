@@ -1,4 +1,11 @@
-**Date:** 2025-05-12  Multi-layer (9 layered) 2-pool (fast and slow) SOM model with bidirectional redistribution
+**Date:** 2025-05-15  Update: Multi-layer (9 layered) 2-pool (fast and slow) SOM model resotored with steps
+This version implements a **multi-layer, 2-pool soil organic matter (SOM) model for fast and slow decay rate** with the following updates:
+- Restored the defined steps by removing multiple do loops within kyr
+- Redfined the bottom layer/9th layer from 5000 to 9999 for bookkeeping
+   
+---
+
+**Date:** 2025-05-14  Multi-layer (9 layered) 2-pool (fast and slow) SOM model with bidirectional redistribution
 
 This version implements a **multi-layer, 2-pool soil organic matter (SOM) model for fast and slow decay rate** with the following features:
 - 9 soil layers from surface to 5000 mm (based on hybrid's hydrological structure).
@@ -36,7 +43,7 @@ This version implements a **multi-layer, 2-pool soil organic matter (SOM) model 
 
 ---
 
-**Date:** 2025-05-12  Multi-layer (9 layered) SOM model with bidirectional redistribution and time varying decacy rate
+**Date:** 2025-05-14  Multi-layer (9 layered) SOM model with bidirectional redistribution and time varying decacy rate
 
 This version implements a **multi-layer, 1-pool soil organic matter (SOM) model** with the following features:
 
@@ -128,7 +135,7 @@ The attached figure shows
 
 --- 
 
-**Date:** 2025-05-12  Update: Refactored SOM model with bidirectional redistribution, depth diagnostics, and testing
+**Date:** 2025-05-13  Update: Refactored SOM model with bidirectional redistribution, depth diagnostics, and testing
 
 ## Model Configuration
 - Bidirectional redistribution (both downward and upward) to maintain layer-specific SOM density.
@@ -172,7 +179,7 @@ The attached figure shows
  
 ---
 
-**Date:** 2025-05-12  Update: 3-layer SOM model with depth-based redistribution and mass-density constraint
+**Date:** 2025-05-13  Update: 3-layer SOM model with depth-based redistribution and mass-density constraint
 
 ## Parameters and Units
 

@@ -1,3 +1,9 @@
+**Date:** 2025-05-15  Update: Multi-layer (9 layered) 2-pool (fast and slow) SOM model with fast/slow pool ratio diagnostic checks
+This version implements a **multi-layer, 2-pool soil organic matter (SOM) model for fast and slow decay rate** with the following updates:
+- Included checks to for the fast/slow pool ratio diagnostic checks to conserve mass
+ 
+---
+
 **Date:** 2025-05-15  Update: Multi-layer (9 layered) 2-pool (fast and slow) SOM model resotored with steps
 This version implements a **multi-layer, 2-pool soil organic matter (SOM) model for fast and slow decay rate** with the following updates:
 - Restored the defined steps by removing multiple do loops within kyr

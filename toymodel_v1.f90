@@ -62,15 +62,21 @@ program toymodel_v1
     integer, parameter :: unit_out = 20                                         ! File unit for diagnostics
     character(len=*), parameter :: outfile = 'Diagnostics.csv'                  ! Output filename
 
-    open(unit=unit_out, file=outfile, status='replace', action='write')         ! Open output file for writing
-    
+    integer, parameter :: unit_layer = 21                                       ! Additional diagnostics for per-layer fast/slow pool evolution
+    character(len=*), parameter :: layerfile = 'LayerwisePools.csv'
+
+    open(unit=unit_out, file=outfile, status='replace', action='write')         ! Open diagnostics output file for writing
+    open(unit=unit_layer, file=layerfile, status='replace', action='write')     ! Open pool output file for writing
+
     write(unit_out,'(a)') 'Year,' // 'SOMf_L1,SOMf_L2,SOMf_L3,SOMf_L4,' // &    
         'SOMf_L5,SOMf_L6,SOMf_L7,SOMf_L8,SOMf_L9,SOMs_L1,SOMs_L2,SOMs_L3,' // &
         'SOMs_L4,SOMs_L5,SOMs_L6,SOMs_L7,SOMs_L8,SOMs_L9,Input,Respired,' // &
-        'NEE,TotalDepth'                                                        ! Output header - file
+        'NEE,TotalDepth'                                                        ! Output header - Diagnostics file
     
     write(*,'(a)') 'Year    SOM_fast_L1 SOM_fast_L2 ... SOM_slow_L9 Input ' // &      
         'Respired NEE TotalDepth'                                               ! Output header - screen
+
+    write(unit_layer,*) 'Year,Layer,SOM_fast,SOM_slow,SOM_total,FastSlow_ratio'! Output header - Pool file
 
     !---------------------------------------------------------------------------!
     ! Initialization
@@ -167,6 +173,25 @@ program toymodel_v1
             
             end if
 
+            !-------------------------------------------------------------------!
+            ! Unrealistic fast/slow ratio divergence diagnostic check
+            !-------------------------------------------------------------------!
+            do ilayer = 1, nlayers - 1
+                if (SOM_slow(ilayer) > 0.0_dp .and. SOM_slow(ilayer+1) > 0.0_dp) then
+                    if (abs((SOM_fast(ilayer)/SOM_slow(ilayer)) - &
+                        (SOM_fast(ilayer+1)/SOM_slow(ilayer+1))) > 1.0_dp) then
+                        write(*,'(a,i4)') 'Warning: Large fast/slow ratio mismatch between layers ', ilayer
+                        write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Fast = ', SOM_fast(ilayer)
+                        write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Slow = ', SOM_slow(ilayer)
+                        write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Ratio = ', SOM_fast(ilayer)/SOM_slow(ilayer)
+                        write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Fast = ', SOM_fast(ilayer+1)
+                        write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Slow = ', SOM_slow(ilayer+1)
+                        write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Ratio = ', SOM_fast(ilayer+1)/SOM_slow(ilayer+1)
+                    end if
+                end if
+            
+            end do
+
         end do                                                                  ! End of sub-timestep loop
 
         !-----------------------------------------------------------------------!
@@ -177,8 +202,15 @@ program toymodel_v1
         write(*,'(i5,27f12.5)') kyr, SOM_fast(:), SOM_slow(:), input_rate, &
             resp_total, nee, final_depth
         
-         write(unit_out,'(i0,",",27(f12.5,","),f12.5)') kyr, SOM_fast(:), &
+        write(unit_out,'(i0,",",27(f12.5,","),f12.5)') kyr, SOM_fast(:), &
             SOM_slow(:), input_rate, resp_total, nee, final_depth
+
+        do ilayer = 1, nlayers
+            write(unit_layer,'(i0,",",i0,",",f12.5,",",f12.5,",",f12.5,",",f12.5)') kyr, ilayer, &
+                SOM_fast(ilayer), SOM_slow(ilayer), SOM_fast(ilayer) + SOM_slow(ilayer), &
+                merge(SOM_fast(ilayer)/SOM_slow(ilayer), 0.0_dp, SOM_slow(ilayer) > 0.0_dp)
+
+        end do
 
     end do                                                                      ! End of year loop
 

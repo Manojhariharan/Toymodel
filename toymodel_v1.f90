@@ -26,10 +26,10 @@ program toymodel_v1
     !---------------------------------------------------------------------------!
     real(dp), parameter :: input_rate = 1.05_dp                                 ! Annual carbon input from litterfall (kg C/m2/year)
     real(dp), parameter :: rho_SOM = 50.0_dp                                    ! Target SOM density (kg C/m3)
-    real(dp), parameter :: k_fast = 0.007_dp                                    ! Decay rate for fast SOM pool (/year)
-    real(dp), parameter :: k_slow = 0.007_dp                                    ! Decay rate for slow SOM pool (/year)
-    real(dp), parameter :: fCO2_fast = 1.0_dp                                   ! Fraction of fast decomposition lost as respiration
-    real(dp), parameter :: fCO2_slow = 1.0_dp                                   ! Fraction of slow decomposition lost as respiration
+    real(dp), parameter :: k_fast = 0.07_dp                                     ! Decay rate for fast SOM pool (/year)
+    real(dp), parameter :: k_slow = 0.00167_dp                                  ! Decay rate for slow SOM pool (/year)
+    real(dp), parameter :: fCO2_fast = 0.55_dp                                  ! Fraction of fast decomposition lost as respiration
+    real(dp), parameter :: fCO2_slow = 0.55_dp                                  ! Fraction of slow decomposition lost as respiration
     real(dp), parameter :: EM = 1.0_dp                                          ! Environmental modifier
 
     !---------------------------------------------------------------------------!
@@ -50,6 +50,8 @@ program toymodel_v1
     real(dp) :: resp_total, nee                                                 ! Total respiration and net ecosystem exchange
     real(dp) :: final_depth                                                     ! Effective depth of SOM column (mm)
     real(dp) :: SOM_want, SOM_delta                                             ! Redistribution diagnostics
+    real(dp) :: SOM_current, SOM_below, move_amt                                ! Local SOM stocks and actual redistributed amount
+    real(dp) :: frac_slow_donor, frac_fast_donor                                ! Fraction of slow/fast SOM in donor layer
 
     !---------------------------------------------------------------------------!
     ! Loop counters
@@ -137,20 +139,47 @@ program toymodel_v1
                 !---------------------------------------------------------------!
                 resp_total = resp_total + resp_fast(ilayer) + resp_slow(ilayer) ! Accumulate respiration (kg C/m2)
 
-                end do
+            end do
 
             !-------------------------------------------------------------------!
-            ! SOM redistribution ((bidirectional, mass-conserving)
+            ! SOM redistribution (bidirectional, 2-pool, mass-conserving)
             !-------------------------------------------------------------------!
             do ilayer = 1, nlayers - 1
-                
-                SOM_want  = rho_SOM * dz(ilayer) / 1000.0_dp                    ! Target SOM mass (kg C/m2) based on density (kg/m3) and layer thickness (mm to m)
-                SOM_delta = min(SOM_want - (SOM_fast(ilayer) + SOM_slow(ilayer)), &
-                    SOM_fast(ilayer+1) + SOM_slow(ilayer+1))                    ! SOM to redistribute: positive if deficit in current layer, limited by donor pool
-                
-                SOM_slow(ilayer)   = SOM_slow(ilayer) + SOM_delta               ! Receive SOM in slow pool if deficit, give SOM if excess (mass-conserving adjustment)
-                SOM_slow(ilayer+1) = SOM_slow(ilayer+1) - SOM_delta             ! Mirror adjustment to adjacent (deeper) layer
-            
+
+                SOM_want   = rho_SOM * dz(ilayer) / 1000.0_dp                   ! Target SOM mass in layer (kg C/m2)
+                SOM_current = SOM_fast(ilayer) + SOM_slow(ilayer)               ! Current SOM in layer (kg C/m2)
+                SOM_below   = SOM_fast(ilayer+1) + SOM_slow(ilayer+1)           ! SOM in layer below (kg C/m2)
+
+                SOM_delta = SOM_want - SOM_current                              ! Net deficit or excess in current layer
+
+                if (SOM_delta > 0.0_dp .and. SOM_below > 0.0_dp) then
+                    !-----------------------------------------------------------!
+                    ! Case 1: Upward SOM movement (deficit in current layer)
+                    !-----------------------------------------------------------!
+                    frac_fast_donor = SOM_fast(ilayer+1) / SOM_below                    ! Fast fraction in donor layer
+                    frac_slow_donor = SOM_slow(ilayer+1) / SOM_below                    ! Slow fraction in donor layer
+                    move_amt = min(SOM_delta, SOM_below)                                ! Move up only what donor can afford
+
+                    SOM_fast(ilayer)   = SOM_fast(ilayer)   + move_amt * frac_fast_donor! Update fast pool (recipient layer)
+                    SOM_slow(ilayer)   = SOM_slow(ilayer)   + move_amt * frac_slow_donor! Update slow pool (recipient layer)
+                    SOM_fast(ilayer+1) = SOM_fast(ilayer+1) - move_amt * frac_fast_donor! Update fast pool (donor layer)
+                    SOM_slow(ilayer+1) = SOM_slow(ilayer+1) - move_amt * frac_slow_donor! Update slow pool (donor layer)
+
+                else if (SOM_delta < 0.0_dp .and. SOM_current > 0.0_dp) then
+                    !-----------------------------------------------------------!
+                    ! Case 2: Downward SOM movement (excess in current layer)
+                    !-----------------------------------------------------------!
+                    frac_fast_donor = SOM_fast(ilayer) / SOM_current                    ! Fast fraction in donor layer
+                    frac_slow_donor = SOM_slow(ilayer) / SOM_current                    ! Slow fraction in donor layer
+                    move_amt = min(-SOM_delta, SOM_current)                             ! Move down only what donor can give
+
+                    SOM_fast(ilayer)   = SOM_fast(ilayer)   - move_amt * frac_fast_donor! Update fast pool (donor layer)
+                    SOM_slow(ilayer)   = SOM_slow(ilayer)   - move_amt * frac_slow_donor! Update slow pool (donor layer)
+                    SOM_fast(ilayer+1) = SOM_fast(ilayer+1) + move_amt * frac_fast_donor! Update fast pool (recipient layer)
+                    SOM_slow(ilayer+1) = SOM_slow(ilayer+1) + move_amt * frac_slow_donor! Update slow pool (recipient layer)
+
+                end if
+
             end do
 
             !-------------------------------------------------------------------!

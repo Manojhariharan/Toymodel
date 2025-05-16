@@ -1,3 +1,8 @@
+**Date:** 2025-05-16  Update: Multi-layer (9 layered) 3-pool (fast/ slow/ passive) SOM model 
+This version implements a **multi-layer, 3-pool soil organic matter (SOM) model ** with the following updates:
+- Introduced the passive pool into the SOM model, which requires detailed logic for SOM calculation and redistribution
+  
+
 **Date:** 2025-05-16  Update: Multi-layer (9 layered) 2-pool (fast and slow) SOM model with updated redistirbution logic to conserve fast/slow pool ratio
 This version implements a **multi-layer, 2-pool soil organic matter (SOM) model for fast and slow decay rate** with the following updates:
 - Fully bidirectional and Mass conserving by respecting fast:slow pool composition of the donor layer

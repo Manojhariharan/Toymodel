@@ -1,7 +1,7 @@
 !===============================================================================!
 ! Program: toymodel_v1
-! Purpose: Multi-layer, 2-pool SOM model with mass conservation diagnostics,
-!          CENTURY-style decomposition (fast and slow pools), and
+! Purpose: Multi-layer, 3-pool SOM model with mass conservation diagnostics,
+!          CENTURY-style decomposition (fast/ slow/ passive pools), and
 !          redistribution to maintain target SOM density.
 !===============================================================================!
 program toymodel_v1
@@ -28,9 +28,11 @@ program toymodel_v1
     real(dp), parameter :: rho_SOM = 50.0_dp                                    ! Target SOM density (kg C/m3)
     real(dp), parameter :: k_fast = 0.07_dp                                     ! Decay rate for fast SOM pool (/year)
     real(dp), parameter :: k_slow = 0.00167_dp                                  ! Decay rate for slow SOM pool (/year)
+    real(dp), parameter :: k_passive = 0.0001_dp                                ! !**** INTRODUCED ****! Decay rate for passive SOM pool (/year)
     real(dp), parameter :: fCO2_fast = 0.55_dp                                  ! Fraction of fast decomposition lost as respiration
     real(dp), parameter :: fCO2_slow = 0.55_dp                                  ! Fraction of slow decomposition lost as respiration
-    real(dp), parameter :: EM = 1.0_dp                                          ! Environmental modifier
+    real(dp), parameter :: fCO2_passive = 0.55_dp                               ! !**** INTRODUCED ****! Fraction of passive decomposition lost as respiration
+    real(dp), parameter :: EM = 2.5_dp                                          ! Environmental modifier REVISED to 2.5
 
     !---------------------------------------------------------------------------!
     ! Soil layer depth and thickness (mm)
@@ -42,16 +44,18 @@ program toymodel_v1
     !---------------------------------------------------------------------------!
     ! State variables and fluxes
     !---------------------------------------------------------------------------!
-    real(dp), dimension(nlayers) :: SOM_fast, SOM_slow                          ! Fast and slow SOM pools (kg C/m2)
-    real(dp), dimension(nlayers) :: litter, decomp_fast, decomp_slow            ! Inputs and decomposition fluxes (kg C/m2/year)
-    real(dp), dimension(nlayers) :: resp_fast, resp_slow                        ! Respiration losses from fast/slow (kg C/m2/year)
-    real(dp), dimension(nlayers) :: dSOM_fast, dSOM_slow                        ! Net SOM changes per timestep
+    real(dp), dimension(nlayers) :: litter                                      ! Input fluxes (kg C/m2/year)
+    real(dp), dimension(nlayers) :: SOM_fast, SOM_slow, SOM_passive             ! !**** REVISED ****! Fast/slow/passive SOM pools (kg C/m2)
+    real(dp), dimension(nlayers) :: decomp_fast, decomp_slow, decomp_passive    ! !**** REVISED ****! Decomposition fluxes (kg C/m2/year)
+    real(dp), dimension(nlayers) :: resp_fast, resp_slow, resp_passive          ! !**** REVISED ****! Respiration losses from fast/slow/passive pools
+    real(dp), dimension(nlayers) :: dSOM_fast, dSOM_slow, dSOM_passive          ! !**** REVISED ****! Net SOM changes per timestep
+
     real(dp) :: mass_start, mass_end, mass_error                                ! Mass conservation diagnostics
     real(dp) :: resp_total, nee                                                 ! Total respiration and net ecosystem exchange
     real(dp) :: final_depth                                                     ! Effective depth of SOM column (mm)
     real(dp) :: SOM_want, SOM_delta                                             ! Redistribution diagnostics
     real(dp) :: SOM_current, SOM_below, move_amt                                ! Local SOM stocks and actual redistributed amount
-    real(dp) :: frac_slow_donor, frac_fast_donor                                ! Fraction of slow/fast SOM in donor layer
+    real(dp) :: frac_fast_donor, frac_slow_donor, frac_passive_donor            ! !**** REVISED ****! Fraction of fast/slow/passive SOM in donor layer
 
     !---------------------------------------------------------------------------!
     ! Loop counters
@@ -71,21 +75,28 @@ program toymodel_v1
     open(unit=unit_layer, file=layerfile, status='replace', action='write')     ! Open pool output file for writing
 
     write(unit_out,'(a)') 'Year,' // 'SOMf_L1,SOMf_L2,SOMf_L3,SOMf_L4,' // &    
-        'SOMf_L5,SOMf_L6,SOMf_L7,SOMf_L8,SOMf_L9,SOMs_L1,SOMs_L2,SOMs_L3,' // &
-        'SOMs_L4,SOMs_L5,SOMs_L6,SOMs_L7,SOMs_L8,SOMs_L9,Input,Respired,' // &
-        'NEE,TotalDepth'                                                        ! Output header - Diagnostics file
+        'SOMf_L5,SOMf_L6,SOMf_L7,SOMf_L8,SOMf_L9,SOMs_L1,SOMs_L2,' // &
+        'SOMs_L3,SOMs_L4,SOMs_L5,SOMs_L6,SOMs_L7,SOMs_L8,SOMs_L9,' // &
+        'SOMp_L1,SOMp_L2,SOMp_L3,SOMp_L4,SOMp_L5,SOMp_L6,SOMp_L7,' // &
+        'SOMp_L8,SOMp_L9,Input,Respired,NEE,TotalDepth'                         ! !**** REVISED ****! Output header - Diagnostics file
     
-    write(*,'(a)') 'Year    SOM_fast_L1 SOM_fast_L2 ... SOM_slow_L9 Input ' // &      
-        'Respired NEE TotalDepth'                                               ! Output header - screen
+    write(*,'(a)') 'Year  ' // 'SOMf_L1 SOMf_L2 SOMf_L3 SOMf_L4 SOMf_L5 ' // &
+        'SOMf_L6 SOMf_L7 SOMf_L8 SOMf_L9 SOMs_L1 SOMs_L2 SOMs_L3 SOMs_L4 ' // &
+        'SOMs_L5 SOMs_L6 SOMs_L7 SOMs_L8 SOMs_L9 SOMp_L1 SOMp_L2 SOMp_L3 ' // &
+        'SOMp_L4 SOMp_L5 SOMp_L6 SOMp_L7 SOMp_L8 SOMp_L9 Input Respired ' // &
+        'NEE TotalDepth'                                                        ! !**** REVISED ****! Output header - screen
 
-    write(unit_layer,*) 'Year,Layer,SOM_fast,SOM_slow,SOM_total,FastSlow_ratio'! Output header - Pool file
+    write(unit_layer,*) 'Year,Layer,SOM_fast,SOM_slow,SOM_passive,' // &
+        'SOM_total,FastSlow_ratio,SlowPassive_ratio,FastPassive_ratio'          ! !**** REVISED ****! Output header - Pool file
 
     !---------------------------------------------------------------------------!
     ! Initialization
     !---------------------------------------------------------------------------!
     dz = z_interface(2:) - z_interface(1:nlayers)                               ! Compute layer thicknesses (mm)
+    
     SOM_fast(:) = 0.0_dp                                                        ! Initialize fast pool (kg C/m2)
     SOM_slow(:) = 0.0_dp                                                        ! Initialize slow pool (kg C/m2)
+    SOM_passive(:) = 0.0_dp                                                     ! !!**** INTRODUCED ****! Initialize passive pool (kg C/m2)
 
     !---------------------------------------------------------------------------!
     ! Simulation loop
@@ -96,7 +107,8 @@ program toymodel_v1
             !-------------------------------------------------------------------!
             ! Mass at start: SOM total plus expected input
             !-------------------------------------------------------------------!
-            mass_start = sum(SOM_fast(:)) + sum(SOM_slow(:)) + dt * input_rate  ! Total expected C before update  (kg C/m2)
+            mass_start = sum(SOM_fast(:)) + sum(SOM_slow(:)) + &
+                sum(SOM_passive(:)) + dt * input_rate                           ! !**** REVISED ****! Total expected C before update  (kg C/m2)
             
             !-------------------------------------------------------------------!
             ! Reset flux accumulation
@@ -115,40 +127,49 @@ program toymodel_v1
 
                 decomp_fast(ilayer) = EM * k_fast * SOM_fast(ilayer)            ! Fast pool decomposition flux (kg C/m2/year)
                 decomp_slow(ilayer) = EM * k_slow * SOM_slow(ilayer)            ! Slow pool decomposition flux (kg C/m2/year)
-                
+                decomp_passive(ilayer)= EM * k_passive * SOM_passive(ilayer)    ! !**** INTRODUCED ****! Passive pool decomposition flux (kg C/m2/year)
+
                 resp_fast(ilayer)   = fCO2_fast * decomp_fast(ilayer)           ! Fast pool respiration (kg C/m2)
                 resp_slow(ilayer)   = fCO2_slow * decomp_slow(ilayer)           ! Slow pool respiration (kg C/m2)
+                resp_passive(ilayer)  = fCO2_passive * decomp_passive(ilayer)   ! !**** INTRODUCED ****!Passive pool respiration (kg C/m2)
 
                 !---------------------------------------------------------------!
                 ! Step 2: Compute net rate of SOM change (Net annual rate of change per layer; kg C/m2/year)
                 !---------------------------------------------------------------!
-                dSOM_fast(ilayer) = litter(ilayer) + (1.0_dp - fCO2_slow) * &
-                    decomp_slow(ilayer) - decomp_fast(ilayer)                   ! Net change in fast SOM pool (kg C/m2/year)
-                
-                dSOM_slow(ilayer) = (1.0_dp - fCO2_fast) * decomp_fast(ilayer) - &
-                    decomp_slow(ilayer)                                         ! Net change in slow SOM pool (kg C/m2/year)
-
+                dSOM_fast(ilayer) = litter(ilayer) + &                          ! !**** REVISED ****!
+                    (1.0_dp - fCO2_slow) * decomp_slow(ilayer) + &              
+                    (1.0_dp - fCO2_passive) * decomp_passive(ilayer) - &         
+                    decomp_fast(ilayer)                                          
+                          
+                dSOM_slow(ilayer) = (1.0_dp - fCO2_fast) * decomp_fast(ilayer) &! !**** REVISED ****!
+                    - decomp_slow(ilayer)                                       
+ 
+                dSOM_passive(ilayer) = (1.0_dp - fCO2_slow) * decomp_slow(ilayer) - &  !**** INTRODUCED ****!
+                    decomp_passive(ilayer)                                      
+                         
                 !---------------------------------------------------------------!
                 ! Step 3: Update SOM state (Updated SOM pools; kg C/m2)
                 !---------------------------------------------------------------!
                 SOM_fast(ilayer) = SOM_fast(ilayer) + dt * dSOM_fast(ilayer)    ! Apply timestep-adjusted net change to fast SOM pool
                 SOM_slow(ilayer) = SOM_slow(ilayer) + dt * dSOM_slow(ilayer)    ! Apply timestep-adjusted net change to slow SOM pool
-
+                SOM_passive(ilayer)= SOM_passive(ilayer)+dt*dSOM_passive(ilayer)! !**** INTRODUCED ****! Apply timestep-adjusted net change to passive SOM pool
+        
                 !---------------------------------------------------------------!
                 ! Step 4: Accumulate total respiration				
                 !---------------------------------------------------------------!
-                resp_total = resp_total + resp_fast(ilayer) + resp_slow(ilayer) ! Accumulate respiration (kg C/m2)
+                resp_total = resp_total + resp_fast(ilayer) + resp_slow(ilayer) &
+                    + resp_passive(ilayer)                                      ! !**** REVISED ****!Accumulate respiration (kg C/m2)
 
             end do
 
             !-------------------------------------------------------------------!
-            ! SOM redistribution (bidirectional, 2-pool, mass-conserving)
+            ! SOM redistribution (bidirectional, 3-pool, mass-conserving)
             !-------------------------------------------------------------------!
             do ilayer = 1, nlayers - 1
 
-                SOM_want   = rho_SOM * dz(ilayer) / 1000.0_dp                   ! Target SOM mass in layer (kg C/m2)
-                SOM_current = SOM_fast(ilayer) + SOM_slow(ilayer)               ! Current SOM in layer (kg C/m2)
-                SOM_below   = SOM_fast(ilayer+1) + SOM_slow(ilayer+1)           ! SOM in layer below (kg C/m2)
+                SOM_want    = rho_SOM * dz(ilayer) / 1000.0_dp                  ! Target SOM mass in layer (kg C/m2)
+                SOM_current = SOM_fast(ilayer) + SOM_slow(ilayer) + SOM_passive(ilayer)         ! !**** REVISED ****! Current SOM in layer (kg C/m2)
+                SOM_below   = SOM_fast(ilayer+1) + SOM_slow(ilayer+1) + SOM_passive(ilayer+1)   ! !**** REVISED ****! SOM in layer below (kg C/m2)
 
                 SOM_delta = SOM_want - SOM_current                              ! Net deficit or excess in current layer
 
@@ -156,27 +177,35 @@ program toymodel_v1
                     !-----------------------------------------------------------!
                     ! Case 1: Upward SOM movement (deficit in current layer)
                     !-----------------------------------------------------------!
-                    frac_fast_donor = SOM_fast(ilayer+1) / SOM_below                    ! Fast fraction in donor layer
-                    frac_slow_donor = SOM_slow(ilayer+1) / SOM_below                    ! Slow fraction in donor layer
-                    move_amt = min(SOM_delta, SOM_below)                                ! Move up only what donor can afford
+                    frac_fast_donor    = SOM_fast(ilayer+1) / SOM_below         ! Fast fraction in donor layer
+                    frac_slow_donor    = SOM_slow(ilayer+1) / SOM_below         ! Slow fraction in donor layer
+                    frac_passive_donor = SOM_passive(ilayer+1) / SOM_below      ! !**** INTRODUCED ****! Passive fraction in donor layer
+                    move_amt = min(SOM_delta, SOM_below)                        ! Move up only what donor can afford
 
-                    SOM_fast(ilayer)   = SOM_fast(ilayer)   + move_amt * frac_fast_donor! Update fast pool (recipient layer)
-                    SOM_slow(ilayer)   = SOM_slow(ilayer)   + move_amt * frac_slow_donor! Update slow pool (recipient layer)
-                    SOM_fast(ilayer+1) = SOM_fast(ilayer+1) - move_amt * frac_fast_donor! Update fast pool (donor layer)
-                    SOM_slow(ilayer+1) = SOM_slow(ilayer+1) - move_amt * frac_slow_donor! Update slow pool (donor layer)
+                    SOM_fast(ilayer)     = SOM_fast(ilayer)     + move_amt * frac_fast_donor    ! Update fast pool (recipient layer)
+                    SOM_slow(ilayer)     = SOM_slow(ilayer)     + move_amt * frac_slow_donor    ! Update slow pool (recipient layer)
+                    SOM_passive(ilayer)  = SOM_passive(ilayer)  + move_amt * frac_passive_donor ! !**** INTRODUCED ****! Update passive pool (recipient layer)
+
+                    SOM_fast(ilayer+1)   = SOM_fast(ilayer+1)   - move_amt * frac_fast_donor    ! Update fast pool (donor layer)
+                    SOM_slow(ilayer+1)   = SOM_slow(ilayer+1)   - move_amt * frac_slow_donor    ! Update slow pool (donor layer)
+                    SOM_passive(ilayer+1)= SOM_passive(ilayer+1)- move_amt * frac_passive_donor ! !**** INTRODUCED ****! Update passive pool (donor layer)
 
                 else if (SOM_delta < 0.0_dp .and. SOM_current > 0.0_dp) then
                     !-----------------------------------------------------------!
                     ! Case 2: Downward SOM movement (excess in current layer)
                     !-----------------------------------------------------------!
-                    frac_fast_donor = SOM_fast(ilayer) / SOM_current                    ! Fast fraction in donor layer
-                    frac_slow_donor = SOM_slow(ilayer) / SOM_current                    ! Slow fraction in donor layer
-                    move_amt = min(-SOM_delta, SOM_current)                             ! Move down only what donor can give
+                    frac_fast_donor    = SOM_fast(ilayer) / SOM_current         ! Fast fraction in donor layer
+                    frac_slow_donor    = SOM_slow(ilayer) / SOM_current         ! Slow fraction in donor layer
+                    frac_passive_donor = SOM_passive(ilayer) / SOM_current      ! !**** INTRODUCED ****! Passive fraction in donor layer
+                    move_amt = min(-SOM_delta, SOM_current)                     ! Move down only what donor can give
 
-                    SOM_fast(ilayer)   = SOM_fast(ilayer)   - move_amt * frac_fast_donor! Update fast pool (donor layer)
-                    SOM_slow(ilayer)   = SOM_slow(ilayer)   - move_amt * frac_slow_donor! Update slow pool (donor layer)
-                    SOM_fast(ilayer+1) = SOM_fast(ilayer+1) + move_amt * frac_fast_donor! Update fast pool (recipient layer)
-                    SOM_slow(ilayer+1) = SOM_slow(ilayer+1) + move_amt * frac_slow_donor! Update slow pool (recipient layer)
+                    SOM_fast(ilayer)     = SOM_fast(ilayer)     - move_amt * frac_fast_donor    ! Update fast pool (donor layer)
+                    SOM_slow(ilayer)     = SOM_slow(ilayer)     - move_amt * frac_slow_donor    ! Update slow pool (donor layer)
+                    SOM_passive(ilayer)  = SOM_passive(ilayer)  - move_amt * frac_passive_donor ! !**** INTRODUCED ****! Update passive pool (donor layer)
+
+                    SOM_fast(ilayer+1)   = SOM_fast(ilayer+1)   + move_amt * frac_fast_donor    ! Update fast pool (recipient layer)
+                    SOM_slow(ilayer+1)   = SOM_slow(ilayer+1)   + move_amt * frac_slow_donor    ! Update slow pool (recipient layer)
+                    SOM_passive(ilayer+1)= SOM_passive(ilayer+1)+ move_amt * frac_passive_donor ! !**** INTRODUCED ****! Update passive pool (recipient layer)
 
                 end if
 
@@ -190,7 +219,7 @@ program toymodel_v1
             !-------------------------------------------------------------------!
             ! Mass conservation diagnostics
             !-------------------------------------------------------------------!
-            mass_end = sum(SOM_fast(:)) + sum(SOM_slow(:)) + dt * resp_total    ! Total C after update (kg C/m2)
+            mass_end = sum(SOM_fast(:)) + sum(SOM_slow(:)) + sum(SOM_passive(:)) + dt * resp_total    ! !**** REVISED ****! Total C after update (kg C/m2)
             mass_error = abs(mass_end - mass_start)                             ! Error magnitude		
             
             if (mass_error > eps) then
@@ -206,9 +235,12 @@ program toymodel_v1
             ! Unrealistic fast/slow ratio divergence diagnostic check
             !-------------------------------------------------------------------!
             do ilayer = 1, nlayers - 1
+
+                !---------------------------------------------------------------!
+                ! Check fast/slow ratio mismatch
+                !---------------------------------------------------------------!
                 if (SOM_slow(ilayer) > 0.0_dp .and. SOM_slow(ilayer+1) > 0.0_dp) then
-                    if (abs((SOM_fast(ilayer)/SOM_slow(ilayer)) - &
-                        (SOM_fast(ilayer+1)/SOM_slow(ilayer+1))) > 1.0_dp) then
+                    if (abs((SOM_fast(ilayer)/SOM_slow(ilayer)) - (SOM_fast(ilayer+1)/SOM_slow(ilayer+1))) > 1.0_dp) then
                         write(*,'(a,i4)') 'Warning: Large fast/slow ratio mismatch between layers ', ilayer
                         write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Fast = ', SOM_fast(ilayer)
                         write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Slow = ', SOM_slow(ilayer)
@@ -217,27 +249,46 @@ program toymodel_v1
                         write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Slow = ', SOM_slow(ilayer+1)
                         write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Ratio = ', SOM_fast(ilayer+1)/SOM_slow(ilayer+1)
                     end if
-                end if
-            
-            end do
+
+               end if
+
+               !---------------------------------------------------------------!
+               ! !**** INTRODUCED ****! Check slow/passive ratio mismatch
+               !---------------------------------------------------------------!
+               if (SOM_passive(ilayer) > 0.0_dp .and. SOM_passive(ilayer+1) > 0.0_dp) then
+                   if (abs((SOM_slow(ilayer)/SOM_passive(ilayer)) - (SOM_slow(ilayer+1)/SOM_passive(ilayer+1))) > 1.0_dp) then
+                       write(*,'(a,i4)') 'Warning: Large slow/passive ratio mismatch between layers ', ilayer
+                       write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Slow    = ', SOM_slow(ilayer)
+                       write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Passive = ', SOM_passive(ilayer)
+                       write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Ratio   = ', SOM_slow(ilayer)/SOM_passive(ilayer)
+                       write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Slow    = ', SOM_slow(ilayer+1)
+                       write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Passive = ', SOM_passive(ilayer+1)
+                       write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Ratio   = ', SOM_slow(ilayer+1)/SOM_passive(ilayer+1)
+                   end if
+               end if
+
+           end do
 
         end do                                                                  ! End of sub-timestep loop
 
         !-----------------------------------------------------------------------!
         ! Annual diagnostics and output
         !-----------------------------------------------------------------------!
-        final_depth = sum(SOM_fast(:)+SOM_slow(:)) / rho_SOM * 1000.0_dp        ! Total SOM depth based on sum of pools (mm)
+        final_depth = sum(SOM_fast(:) + SOM_slow(:) + SOM_passive(:)) / rho_SOM * 1000.0_dp        ! !**** REVISED ****! Total SOM depth based on sum of pools (mm)
 
-        write(*,'(i5,27f12.5)') kyr, SOM_fast(:), SOM_slow(:), input_rate, &
-            resp_total, nee, final_depth
+        write(*,'(i5,36f12.5)') kyr, SOM_fast(:), SOM_slow(:), SOM_passive(:), &				   !**** REVISED ****!
+            input_rate, resp_total, nee, final_depth
         
-        write(unit_out,'(i0,",",27(f12.5,","),f12.5)') kyr, SOM_fast(:), &
-            SOM_slow(:), input_rate, resp_total, nee, final_depth
+        write(unit_out,'(i0,",",36(f12.5,","),f12.5)') kyr, SOM_fast(:), SOM_slow(:), &				!**** REVISED ****!
+            SOM_passive(:), input_rate, resp_total, nee, final_depth
 
         do ilayer = 1, nlayers
-            write(unit_layer,'(i0,",",i0,",",f12.5,",",f12.5,",",f12.5,",",f12.5)') kyr, ilayer, &
-                SOM_fast(ilayer), SOM_slow(ilayer), SOM_fast(ilayer) + SOM_slow(ilayer), &
-                merge(SOM_fast(ilayer)/SOM_slow(ilayer), 0.0_dp, SOM_slow(ilayer) > 0.0_dp)
+            write(unit_layer,'(i0,",",i0,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",3f12.5)') kyr, ilayer, &     !**** REVISED ****!
+                SOM_fast(ilayer), SOM_slow(ilayer), SOM_passive(ilayer), &
+                SOM_fast(ilayer) + SOM_slow(ilayer) + SOM_passive(ilayer), &
+                merge(SOM_fast(ilayer)/SOM_slow(ilayer), 0.0_dp, SOM_slow(ilayer) > 0.0_dp), &
+                merge(SOM_slow(ilayer)/SOM_passive(ilayer), 0.0_dp, SOM_passive(ilayer) > 0.0_dp), &
+                merge(SOM_fast(ilayer)/SOM_passive(ilayer), 0.0_dp, SOM_passive(ilayer) > 0.0_dp)
 
         end do
 
@@ -247,20 +298,19 @@ program toymodel_v1
     ! Final diagnostics
     !---------------------------------------------------------------------------!
     write(*,*)
-    do ilayer = 1, nlayers                                                      ! Depth of SOM in layer i (mm)
+    do ilayer = 1, nlayers                                                      ! !**** REVISED ****! Depth of SOM in layer i (mm)
         write(*,'(a,i1,a,f12.5,a)') ' Layer ', ilayer, ' depth   : ', &
-            (SOM_fast(ilayer)+SOM_slow(ilayer))/rho_SOM * 1000.0_dp, ' mm' 
+            (SOM_fast(ilayer)+SOM_slow(ilayer)+SOM_passive(ilayer))/rho_SOM * 1000.0_dp, ' mm'        
     
     end do
 
     write(*,*)
     write(*,'(a,f12.5,a)') ' Total SOM depth : ', final_depth, ' mm'            ! SOM column depth (mm)
-    write(*,'(a,f12.5,a)') ' Total SOM       : ', sum(SOM_fast(:) + SOM_slow(:)), &
-        ' kg C/m2'                                                              ! Total SOM stock across all layers (kg C/m2)
-    
+    write(*,'(a,f12.5,a)') ' Total SOM       : ', sum(SOM_fast(:) + SOM_slow(:) + SOM_passive(:)), ' kg C/m2' ! !**** REVISED ****! Total SOM stock across all layers (kg C/m2)
     write(*,*)
 
     close(unit_out)                                                             ! Close output file
+    close(unit_layer)                                                           ! Close output file
     write(*,*) 'Simulation complete. Results saved to ', outfile
 
 end program toymodel_v1

@@ -1,3 +1,10 @@
+**Date:** 2025-05-19  Update: Multi-layer (9 layered) 3-pool (fast/ slow/ passive) SOM model 
+This version implements a **multi-layer, 3-pool soil organic matter (SOM) model ** with the following updates:
+- Introduced the passive pool into the SOM model, which requires detailed logic for SOM calculation and redistribution revsion
+- Introduced two new parameters `clay_frac = 0.2` and `CSP = 0.003_dp - 0.009_dp * clay_frac` to calculate fractions to use for splitting the passive decay
+  
+---
+
 **Date:** 2025-05-16  Update: Multi-layer (9 layered) 3-pool (fast/ slow/ passive) SOM model 
 This version implements a **multi-layer, 3-pool soil organic matter (SOM) model ** with the following updates:
 - Introduced the passive pool into the SOM model, which requires detailed logic for SOM calculation and redistribution

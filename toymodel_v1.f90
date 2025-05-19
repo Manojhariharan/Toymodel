@@ -33,6 +33,8 @@ program toymodel_v1
     real(dp), parameter :: fCO2_slow = 0.55_dp                                  ! Fraction of slow decomposition lost as respiration
     real(dp), parameter :: fCO2_passive = 0.55_dp                               ! !**** INTRODUCED ****! Fraction of passive decomposition lost as respiration
     real(dp), parameter :: EM = 2.5_dp                                          ! Environmental modifier REVISED to 2.5
+    real(dp), parameter :: clay_frac = 0.2_dp                                   ! !**** INTRODUCED ****! Assumed clay fraction for CSP
+    real(dp), parameter :: CSP = 0.003_dp - 0.009_dp * clay_frac                ! !**** INTRODUCED ****! Slow-to-passive transfer fraction
 
     !---------------------------------------------------------------------------!
     ! Soil layer depth and thickness (mm)
@@ -135,18 +137,18 @@ program toymodel_v1
 
                 !---------------------------------------------------------------!
                 ! Step 2: Compute net rate of SOM change (Net annual rate of change per layer; kg C/m2/year)
-                !---------------------------------------------------------------!
-                dSOM_fast(ilayer) = litter(ilayer) + &                          ! !**** REVISED ****!
-                    (1.0_dp - fCO2_slow) * decomp_slow(ilayer) + &              
-                    (1.0_dp - fCO2_passive) * decomp_passive(ilayer) - &         
-                    decomp_fast(ilayer)                                          
-                          
-                dSOM_slow(ilayer) = (1.0_dp - fCO2_fast) * decomp_fast(ilayer) &! !**** REVISED ****!
-                    - decomp_slow(ilayer)                                       
- 
-                dSOM_passive(ilayer) = (1.0_dp - fCO2_slow) * decomp_slow(ilayer) - &  !**** INTRODUCED ****!
-                    decomp_passive(ilayer)                                      
-                         
+                !---------------------------------------------------------------!                                     
+                dSOM_fast(ilayer) = litter(ilayer) + & 
+                    (1.0_dp - fCO2_slow) * (1.0_dp - CSP) * decomp_slow(ilayer) &
+                     - decomp_fast(ilayer)                                      ! !**** REVISED ****! Net change in fast SOM pool (kg C/m2/year)
+
+                dSOM_slow(ilayer) = (1.0_dp - fCO2_fast) * decomp_fast(ilayer)  &
+                     + (1.0_dp - fCO2_passive) * decomp_passive(ilayer) - &
+                    decomp_slow(ilayer)                                         ! !**** REVISED ****! Net change in slow SOM pool (kg C/m2/year)				
+
+                dSOM_passive(ilayer) = (1.0_dp - fCO2_slow) * CSP * &           ! !**** INTRODUCED ****! Net change in passive SOM pool (kg C/m2/year)
+                    decomp_slow(ilayer) - decomp_passive(ilayer)                
+
                 !---------------------------------------------------------------!
                 ! Step 3: Update SOM state (Updated SOM pools; kg C/m2)
                 !---------------------------------------------------------------!
@@ -265,25 +267,28 @@ program toymodel_v1
                        write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Passive = ', SOM_passive(ilayer+1)
                        write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Ratio   = ', SOM_slow(ilayer+1)/SOM_passive(ilayer+1)
                    end if
+               
                end if
-
-           end do
+            
+            end do
 
         end do                                                                  ! End of sub-timestep loop
 
         !-----------------------------------------------------------------------!
         ! Annual diagnostics and output
         !-----------------------------------------------------------------------!
-        final_depth = sum(SOM_fast(:) + SOM_slow(:) + SOM_passive(:)) / rho_SOM * 1000.0_dp        ! !**** REVISED ****! Total SOM depth based on sum of pools (mm)
+        final_depth = sum(SOM_fast(:) + SOM_slow(:) + SOM_passive(:)) / &
+                rho_SOM * 1000.0_dp                                             ! !**** REVISED ****! Total SOM depth based on sum of pools (mm)
 
-        write(*,'(i5,36f12.5)') kyr, SOM_fast(:), SOM_slow(:), SOM_passive(:), &				   !**** REVISED ****!
-            input_rate, resp_total, nee, final_depth
+        write(*,'(i5,36f12.5)') kyr, SOM_fast(:), SOM_slow(:), SOM_passive(:), &   
+            input_rate, resp_total, nee, final_depth                            ! !**** REVISED ****!
         
-        write(unit_out,'(i0,",",36(f12.5,","),f12.5)') kyr, SOM_fast(:), SOM_slow(:), &				!**** REVISED ****!
-            SOM_passive(:), input_rate, resp_total, nee, final_depth
+        write(unit_out,'(i0,",",36(f12.5,","),f12.5)') kyr, SOM_fast(:), &      
+            SOM_slow(:), SOM_passive(:), input_rate, resp_total, &
+            nee, final_depth                                                    ! !**** REVISED ****!
 
         do ilayer = 1, nlayers
-            write(unit_layer,'(i0,",",i0,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",3f12.5)') kyr, ilayer, &     !**** REVISED ****!
+            write(unit_layer,'(i0,",",i0,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",f12.5,",",f12.5)') kyr, ilayer, &     !**** REVISED ****!
                 SOM_fast(ilayer), SOM_slow(ilayer), SOM_passive(ilayer), &
                 SOM_fast(ilayer) + SOM_slow(ilayer) + SOM_passive(ilayer), &
                 merge(SOM_fast(ilayer)/SOM_slow(ilayer), 0.0_dp, SOM_slow(ilayer) > 0.0_dp), &

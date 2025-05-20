@@ -1,3 +1,34 @@
+**Date:** 2025-05-20  Update: toymodel_v1: CENTURY-style Multi-Layer 3-Pool SOM Model
+
+This version of the model simulates the dynamics of soil organic matter (SOM) using a CENTURY-inspired decomposition structure with **fast, slow, and passive pools** in a **multi-layer soil profile**. It tracks carbon flows, respiration losses, and maintains mass conservation while redistributing SOM vertically to meet layer-wise density criteria.
+
+## Key Modifications
+
+## Revised Model Parameters
+
+| Parameter       | Description                                | Old Value     | Revised value |
+|----------------|---------------------------------------------|---------------|---------------|
+| `k_fast`       | Fast pool decay rate (/yr)                  | 0.07          |1.75          |
+| `k_slow`       | Slow pool decay rate (/yr)                  | 0.00167       |0.04175       |
+| `k_passive`    | Passive pool decay rate (/yr)               | 0.0001        |0.0025        |
+| `EM`           | Environmental modifier (dimensionless)      | 1.0           |0.1           |
+| `clay_frac`    | Assumed clay fraction for CSP               | 0.2           |-             |
+
+### Structural Revisions
+- Refactored decomposition logic using **explicit internal carbon flux variables** for better clarity and mass balance diagnostics.
+- Improved in-line documentation of SOM update logic.
+
+### Pool Dynamics
+The model now includes:
+- `fast_to_slow`: flow from fast pool to slow pool
+- `slow_to_fast`: portion of slow decay that recycles to fast pool
+- `slow_to_passive`: portion of slow decay that flows into passive pool (clay-dependent via `CSP`)
+- `passive_to_slow`: passive pool decay recycled to slow
+
+These flows are now used to compute net SOM changes.
+
+---
+
 **Date:** 2025-05-19  Update: Multi-layer (9 layered) 3-pool (fast/ slow/ passive) SOM model 
 This version implements a **multi-layer, 3-pool soil organic matter (SOM) model ** with the following updates:
 - Introduced the passive pool into the SOM model, which requires detailed logic for SOM calculation and redistribution revsion
@@ -6,7 +37,7 @@ This version implements a **multi-layer, 3-pool soil organic matter (SOM) model 
 ---
 
 **Date:** 2025-05-16  Update: Multi-layer (9 layered) 3-pool (fast/ slow/ passive) SOM model 
-This version implements a **multi-layer, 3-pool soil organic matter (SOM) model ** with the following updates:
+This version implements a **multi-layer, 3-pool soil organic matter (SOM) model** with the following updates:
 - Introduced the passive pool into the SOM model, which requires detailed logic for SOM calculation and redistribution
   
 

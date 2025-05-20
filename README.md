@@ -17,6 +17,7 @@ This version of the model simulates the dynamics of soil organic matter (SOM) us
 ### Structural Revisions
 - Refactored decomposition logic using **explicit internal carbon flux variables** for better clarity and mass balance diagnostics.
 - Improved in-line documentation of SOM update logic.
+- Litter input distributed proportional to layer thickness 
 
 ### Pool Dynamics
 The model now includes:

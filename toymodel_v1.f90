@@ -62,6 +62,7 @@ program toymodel_v1
     real(dp) :: fast_gain, fast_lose                                                            ! Transfer between fast SOM pool decomposition
     real(dp) :: slow_gain, slow_lose                                                            ! Transfer between slow SOM pool decomposition
     real(dp) :: passive_gain, passive_lose                                                      ! Transfer between passive SOM pool decomposition
+    real(dp) :: total_thickness                                                                 ! Total soil profile thickness (mm)
 
     !---------------------------------------------------------------------------!
     ! Loop counters
@@ -99,7 +100,8 @@ program toymodel_v1
     ! Initialization
     !---------------------------------------------------------------------------!
     dz = z_interface(2:) - z_interface(1:nlayers)                                               ! Compute layer thicknesses (mm)
-    
+    total_thickness = sum(dz)                                                                   ! Compute total thickness of all soil layers (mm)
+
     SOM_fast(:) = 0.0_dp                                                                        ! Initialize fast pool (kg C/m2)
     SOM_slow(:) = 0.0_dp                                                                        ! Initialize slow pool (kg C/m2)
     SOM_passive(:) = 0.0_dp                                                                     ! Initialize passive pool (kg C/m2)
@@ -133,7 +135,7 @@ program toymodel_v1
             !-------------------------------------------------------------------!
             do ilayer = 1, nlayers
 
-                litter(ilayer)      = input_rate / real(nlayers, dp)                            ! Evenly distribute input across layers  (kg C/m2/year)
+                litter(ilayer) = input_rate * dz(ilayer) / total_thickness                      ! Distribute litter input proportional to each layer's thicknes  (kg C/m2/year)
 
                 !---------------------------------------------------------------!
                 ! Step 1: Compute decomposition fluxes

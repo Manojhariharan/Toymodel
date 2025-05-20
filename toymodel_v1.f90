@@ -151,10 +151,10 @@ program toymodel_v1
                 !---------------------------------------------------------------!
                 ! Step 2.1: Define decomposition-based carbon transfers between pools
                 !---------------------------------------------------------------!                                     
-                fast_to_slow = decomp_fast(ilayer) * (1.0_dp - fCO2_fast)                       ! Non-respired fraction of fast pool decomposition (kg C/m2/year)
-                slow_to_fast = decomp_slow(ilayer) * (1.0_dp - fCO2_slow) * (1.0_dp - CSP)      ! Non-respired fraction of slow pool decay going to fast (1 - CSP) (kg C/m2/year)
-                slow_to_passive = decomp_slow(ilayer) * (1.0_dp - fCO2_slow) * CSP              ! Non-respired fraction of slow pool decay going to passive (CSP) (kg C/m2/year)
-                passive_to_slow = decomp_passive(ilayer) * (1.0_dp - fCO2_passive)              ! Non-respired fraction of passive pool decay returning to slow (kg C/m2/year)
+                fast_to_slow = (1.0_dp - fCO2_fast) * decomp_fast(ilayer)                       ! Non-respired fraction of fast pool decomposition (kg C/m2/year)
+                slow_to_passive = (1.0_dp - fCO2_slow) * CSP * decomp_slow(ilayer)              ! Non-respired fraction of slow pool decay going to fast (1 - CSP) (kg C/m2/year)
+                slow_to_fast = (1.0_dp - fCO2_slow) * (1.0_dp - CSP) * decomp_slow(ilayer)      ! Non-respired fraction of slow pool decay going to passive (CSP) (kg C/m2/year)
+                passive_to_slow = (1.0_dp - fCO2_passive) * decomp_passive(ilayer)              ! Non-respired fraction of passive pool decay returning to slow (kg C/m2/year)
 
                 fast_gain = litter(ilayer) + slow_to_fast                                       ! Sum of litter input and slow-to-fast return (kg C/m2/year)
                 fast_lose = decomp_fast(ilayer)                                                 ! Outflow from fast to slow pool (kg C/m2/year)
@@ -169,8 +169,8 @@ program toymodel_v1
                 ! Step 2.2: Advance SOM pools based on gain and loss fluxes
                 !---------------------------------------------------------------! 
 
-                dSOM_fast(ilayer)    = fast_gain - fast_lose                                    ! Net change in fast SOM pool (kg C/m2/year)
-                dSOM_slow(ilayer)    = slow_gain - slow_lose                                    ! Net change in slow SOM pool (kg C/m2/year)
+                dSOM_fast(ilayer) = fast_gain - fast_lose                                       ! Net change in fast SOM pool (kg C/m2/year)
+                dSOM_slow(ilayer) = slow_gain - slow_lose                                       ! Net change in slow SOM pool (kg C/m2/year)
                 dSOM_passive(ilayer) = passive_gain - passive_lose                              ! Net change in passive SOM pool (kg C/m2/year)				
 
                 !---------------------------------------------------------------!

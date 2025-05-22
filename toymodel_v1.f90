@@ -37,6 +37,16 @@ program toymodel_v1
     real(dp), parameter :: CSP = 0.003_dp - 0.009_dp * clay_frac                                ! Slow-to-passive transfer fraction
 
     !---------------------------------------------------------------------------!
+    ! Litter input decomposition parameters (for structural/metabolic)
+    !---------------------------------------------------------------------------!
+    real(dp), parameter :: L_N_ratio = 8.0_dp                                                   ! Lignin to Nitrogen ratio
+    real(dp), parameter :: Fm = 0.99_dp - 0.018_dp * L_N_ratio                                  ! Metabolic fraction
+    real(dp), parameter :: k_struct = 4.8_dp                                                    ! Structural decay rate (/year)
+    real(dp), parameter :: k_metabolic = 18.5_dp                                                ! Metabolic decay rate (/year)
+    real(dp), parameter :: fCO2_struct = 0.45_dp                                                ! Fraction of structural litter lost to respiration
+    real(dp), parameter :: fCO2_metabolic = 0.55_dp  
+
+    !---------------------------------------------------------------------------!
     ! Soil layer depth and thickness (mm)
     !---------------------------------------------------------------------------!
     real(dp), dimension(nlayers+1) :: z_interface = [0.0_dp, 45.0_dp, 91.0_dp, &
@@ -47,9 +57,12 @@ program toymodel_v1
     ! State variables and fluxes
     !---------------------------------------------------------------------------!
     real(dp), dimension(nlayers) :: litter                                                      ! Input fluxes (kg C/m2/year)
+    real(dp), dimension(nlayers) :: litter_structural, litter_metabolic                         ! New: Litter pools per layer (kg C/m2)
     real(dp), dimension(nlayers) :: SOM_fast, SOM_slow, SOM_passive                             ! Fast/slow/passive SOM pools (kg C/m2)
     real(dp), dimension(nlayers) :: decomp_fast, decomp_slow, decomp_passive                    ! Decomposition fluxes (kg C/m2/year)
+    real(dp), dimension(nlayers) :: decomp_struct, decomp_metabolic                             ! Litter pool decomposition fluxes
     real(dp), dimension(nlayers) :: resp_fast, resp_slow, resp_passive                          ! Respiration losses from fast/slow/passive pools
+    real(dp), dimension(nlayers) :: resp_struct, resp_metabolic                                 ! Respiration from structural/metabolic pools
     real(dp), dimension(nlayers) :: dSOM_fast, dSOM_slow, dSOM_passive                          ! Net SOM changes per timestep
 
     real(dp) :: mass_start, mass_end, mass_error                                                ! Mass conservation diagnostics
@@ -58,7 +71,7 @@ program toymodel_v1
     real(dp) :: SOM_want, SOM_delta                                                             ! Redistribution diagnostics
     real(dp) :: SOM_current, SOM_below, move_amt                                                ! Local SOM stocks and actual redistributed amount
     real(dp) :: frac_fast_donor, frac_slow_donor, frac_passive_donor                            ! Fraction of fast/ slow/ passive SOM in donor layer
-    real(dp) :: fast_to_slow, slow_to_fast, slow_to_passive, passive_to_slow                    ! Non-respired fraction of fast/ slow/ passive SOM pool decomposition
+    real(dp) :: fast_to_slow, slow_to_fast, slow_to_passive, passive_to_slow                    ! Non-respired fraction of fast/slow/passive pool decomposition
     real(dp) :: fast_gain, fast_lose                                                            ! Transfer between fast SOM pool decomposition
     real(dp) :: slow_gain, slow_lose                                                            ! Transfer between slow SOM pool decomposition
     real(dp) :: passive_gain, passive_lose                                                      ! Transfer between passive SOM pool decomposition
@@ -70,12 +83,17 @@ program toymodel_v1
     integer :: kyr, it, ilayer                                                                  ! Year, timestep, and layer indices
 
     !---------------------------------------------------------------------------!
+    ! Inter-layer pool ratio warnings check
+    !---------------------------------------------------------------------------!
+    logical, parameter :: enable_ratio_check = .false.                                          ! Set to .true. to enable warnings
+
+    !---------------------------------------------------------------------------!
     ! Output file setup
     !---------------------------------------------------------------------------!
     integer, parameter :: unit_out = 20                                                         ! File unit for diagnostics
-    character(len=*), parameter :: outfile = 'Diagnostics.csv'                                  ! Output filename
+    character(len=*), parameter :: outfile = 'Diagnostics.csv'                                  ! Diagnostics for total output
 
-    integer, parameter :: unit_layer = 21                                                       ! Additional diagnostics for per-layer fast/slow pool evolution
+    integer, parameter :: unit_layer = 21                                                       ! Diagnostics for per-layer fast/slow pool evolution
     character(len=*), parameter :: layerfile = 'LayerwisePools.csv'
 
     open(unit=unit_out, file=outfile, status='replace', action='write')                         ! Open diagnostics output file for writing
@@ -105,12 +123,15 @@ program toymodel_v1
     SOM_fast(:) = 0.0_dp                                                                        ! Initialize fast pool (kg C/m2)
     SOM_slow(:) = 0.0_dp                                                                        ! Initialize slow pool (kg C/m2)
     SOM_passive(:) = 0.0_dp                                                                     ! Initialize passive pool (kg C/m2)
+    litter_structural(:) = 0.0_dp                                                               ! Initialize structural litter pool (kg C/m2)
+    litter_metabolic(:)  = 0.0_dp                                                               ! Initialize metabolic litter pool (kg C/m2)
 
     !---------------------------------------------------------------------------!
     ! Check for depth boundary
     !---------------------------------------------------------------------------!
     if (z_interface(nlayers+1) >= 9999.0_dp) then
-        write(*,*) 'Warning: Bottom layer interface exceeds 9 m. Check boundary condition.'
+        write(*,*) 'Warning: Bottom layer interface exceeds 9 m; check boundary condition'
+    
     end if
 
     !---------------------------------------------------------------------------!
@@ -122,13 +143,13 @@ program toymodel_v1
             !-------------------------------------------------------------------!
             ! Mass at start: SOM total plus expected input
             !-------------------------------------------------------------------!
-            mass_start = sum(SOM_fast(:)) + sum(SOM_slow(:)) + &
-                sum(SOM_passive(:)) + dt * input_rate                                           ! Total expected C before update  (kg C/m2)
+            mass_start = sum(SOM_fast(:)) + sum(SOM_slow(:)) + sum(SOM_passive(:)) + &
+                sum(litter_structural(:)) + sum(litter_metabolic(:)) + dt * input_rate          ! Total expected C before update  (kg C/m2)
             
             !-------------------------------------------------------------------!
             ! Reset flux accumulation
             !-------------------------------------------------------------------!				
-            resp_total = 0.0_dp                                                                 ! Reset total respiration
+            resp_total = 0.0_dp                                                                 ! Reset total respiration (kg C/m2)
 
             !-------------------------------------------------------------------!
             ! Layer wise SOM calculation
@@ -136,6 +157,31 @@ program toymodel_v1
             do ilayer = 1, nlayers
 
                 litter(ilayer) = input_rate * dz(ilayer) / total_thickness                      ! Distribute litter input proportional to each layer's thicknes  (kg C/m2/year)
+
+                !---------------------------------------------------------------!
+                ! Step 0: Partition litter input into structural and metabolic pools
+                !---------------------------------------------------------------!
+                litter_structural(ilayer) = litter_structural(ilayer) + &
+                   (1.0_dp - Fm) * litter(ilayer)                                               ! Add structural fraction of litter input to structural pool
+                
+                litter_metabolic(ilayer)  = litter_metabolic(ilayer)  + Fm * litter(ilayer)     ! Add metabolic fraction of litter input to metabolic pool
+
+                !---------------------------------------------------------------!
+                ! Step 0.1: Decay of litter pools with respiration and transfers
+                !---------------------------------------------------------------!
+                decomp_struct(ilayer) = EM * k_struct * litter_structural(ilayer)               ! Structural litter decay rate (kg C/m2/year)
+                resp_struct(ilayer)   = fCO2_struct * decomp_struct(ilayer)                     ! Respiration from structural decay (kg C/m2/year)
+                SOM_slow(ilayer) = SOM_slow(ilayer) + (1.0_dp - fCO2_struct) * &
+                    decomp_struct(ilayer)                                                       ! Transfer to slow pool (non-respired fraction)
+                
+                litter_structural(ilayer) = litter_structural(ilayer) - decomp_struct(ilayer)   ! Update structural pool after decay
+
+                decomp_metabolic(ilayer) = EM * k_metabolic * litter_metabolic(ilayer)          ! Metabolic litter decay rate (kg C/m2/year)
+                resp_metabolic(ilayer)   = fCO2_metabolic * decomp_metabolic(ilayer)            ! Respiration from metabolic decay (kg C/m2/year)
+                SOM_fast(ilayer) = SOM_fast(ilayer) + (1.0_dp - fCO2_metabolic) * &
+                    decomp_metabolic(ilayer)                                                    ! Transfer to fast pool (non-respired fraction)
+                
+                litter_metabolic(ilayer) = litter_metabolic(ilayer) - decomp_metabolic(ilayer)  ! Update metabolic pool after decay
 
                 !---------------------------------------------------------------!
                 ! Step 1: Compute decomposition fluxes
@@ -156,7 +202,7 @@ program toymodel_v1
                 slow_to_fast = (1.0_dp - fCO2_slow) * (1.0_dp - CSP) * decomp_slow(ilayer)      ! Non-respired fraction of slow pool decay going to passive (CSP) (kg C/m2/year)
                 passive_to_slow = (1.0_dp - fCO2_passive) * decomp_passive(ilayer)              ! Non-respired fraction of passive pool decay returning to slow (kg C/m2/year)
 
-                fast_gain = litter(ilayer) + slow_to_fast                                       ! Sum of litter input and slow-to-fast return (kg C/m2/year)
+                fast_gain = slow_to_fast                                                        ! Sum of litter input and slow-to-fast return (kg C/m2/year)
                 fast_lose = decomp_fast(ilayer)                                                 ! Outflow from fast to slow pool (kg C/m2/year)
 
                 slow_gain = fast_to_slow + passive_to_slow                                      ! Gains from fast decay and passive return (kg C/m2/year)
@@ -183,8 +229,8 @@ program toymodel_v1
                 !---------------------------------------------------------------!
                 ! Step 4: Accumulate total respiration				
                 !---------------------------------------------------------------!
-                resp_total = resp_total + resp_fast(ilayer) + resp_slow(ilayer) &
-                    + resp_passive(ilayer)                                                      ! Accumulate respiration (kg C/m2)
+                resp_total = resp_total + resp_fast(ilayer) + resp_slow(ilayer) + &
+                    resp_passive(ilayer) + resp_struct(ilayer) + resp_metabolic(ilayer)         ! Accumulate respiration (kg C/m2)
 
             end do
 
@@ -245,8 +291,8 @@ program toymodel_v1
             !-------------------------------------------------------------------!
             ! Mass conservation diagnostics
             !-------------------------------------------------------------------!
-            mass_end = sum(SOM_fast(:)) + sum(SOM_slow(:)) + sum(SOM_passive(:)) &
-                + dt * resp_total                                                               ! Total C after update (kg C/m2)
+            mass_end = sum(SOM_fast(:)) + sum(SOM_slow(:)) + sum(SOM_passive(:)) + &
+                sum(litter_structural(:)) + sum(litter_metabolic(:)) + dt * resp_total          ! Total C after update (kg C/m2)
             
             mass_error = abs(mass_end - mass_start)                                             ! Error magnitude		
             
@@ -267,34 +313,40 @@ program toymodel_v1
                 !---------------------------------------------------------------!
                 ! Check fast/slow ratio mismatch
                 !---------------------------------------------------------------!
-                if (SOM_slow(ilayer) > 0.0_dp .and. SOM_slow(ilayer+1) > 0.0_dp) then
-                    if (abs((SOM_fast(ilayer)/SOM_slow(ilayer)) - (SOM_fast(ilayer+1)/SOM_slow(ilayer+1))) > 1.0_dp) then
-                        write(*,'(a,i4)') 'Warning: Large fast/slow ratio mismatch between layers ', ilayer
-                        write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Fast = ', SOM_fast(ilayer)
-                        write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Slow = ', SOM_slow(ilayer)
-                        write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Ratio = ', SOM_fast(ilayer)/SOM_slow(ilayer)
-                        write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Fast = ', SOM_fast(ilayer+1)
-                        write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Slow = ', SOM_slow(ilayer+1)
-                        write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Ratio = ', SOM_fast(ilayer+1)/SOM_slow(ilayer+1)
+                if (enable_ratio_check) then
+                    if (SOM_slow(ilayer) > 0.0_dp .and. SOM_slow(ilayer+1) > 0.0_dp) then
+                        if (abs((SOM_fast(ilayer)/SOM_slow(ilayer)) - (SOM_fast(ilayer+1)/SOM_slow(ilayer+1))) > 1.0_dp) then
+                            write(*,'(a,i4)') 'Warning: Large fast/slow ratio mismatch between layers ', ilayer
+                            write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Fast = ', SOM_fast(ilayer)
+                            write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Slow = ', SOM_slow(ilayer)
+                            write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Ratio = ', SOM_fast(ilayer)/SOM_slow(ilayer)
+                            write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Fast = ', SOM_fast(ilayer+1)
+                            write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Slow = ', SOM_slow(ilayer+1)
+                            write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Ratio = ', SOM_fast(ilayer+1)/SOM_slow(ilayer+1)
+                        end if
+
                     end if
 
-               end if
+                end if
 
-               !---------------------------------------------------------------!
-               ! Check slow/passive ratio mismatch
-               !---------------------------------------------------------------!
-               if (SOM_passive(ilayer) > 0.0_dp .and. SOM_passive(ilayer+1) > 0.0_dp) then
-                   if (abs((SOM_slow(ilayer)/SOM_passive(ilayer)) - (SOM_slow(ilayer+1)/SOM_passive(ilayer+1))) > 1.0_dp) then
-                       write(*,'(a,i4)') 'Warning: Large slow/passive ratio mismatch between layers ', ilayer
-                       write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Slow    = ', SOM_slow(ilayer)
-                       write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Passive = ', SOM_passive(ilayer)
-                       write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Ratio   = ', SOM_slow(ilayer)/SOM_passive(ilayer)
-                       write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Slow    = ', SOM_slow(ilayer+1)
-                       write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Passive = ', SOM_passive(ilayer+1)
-                       write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Ratio   = ', SOM_slow(ilayer+1)/SOM_passive(ilayer+1)
-                   end if
+                !---------------------------------------------------------------!
+                ! Check slow/passive ratio mismatch
+                !---------------------------------------------------------------!
+                if (enable_ratio_check) then
+                    if (SOM_passive(ilayer) > 0.0_dp .and. SOM_passive(ilayer+1) > 0.0_dp) then
+                        if (abs((SOM_slow(ilayer)/SOM_passive(ilayer)) - (SOM_slow(ilayer+1)/SOM_passive(ilayer+1))) > 1.0_dp) then
+                            write(*,'(a,i4)') 'Warning: Large slow/passive ratio mismatch between layers ', ilayer
+                            write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Slow    = ', SOM_slow(ilayer)
+                            write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Passive = ', SOM_passive(ilayer)
+                            write(*,'(a,f12.5)') '  L', real(ilayer, dp), '  Ratio   = ', SOM_slow(ilayer)/SOM_passive(ilayer)
+                            write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Slow    = ', SOM_slow(ilayer+1)
+                            write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Passive = ', SOM_passive(ilayer+1)
+                            write(*,'(a,f12.5)') '  L', real(ilayer+1, dp), '  Ratio   = ', SOM_slow(ilayer+1)/SOM_passive(ilayer+1)
+                        end if
                
-               end if
+                    end if
+
+                end if
             
             end do
 

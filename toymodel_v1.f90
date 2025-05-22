@@ -41,10 +41,13 @@ program toymodel_v1
     !---------------------------------------------------------------------------!
     real(dp), parameter :: L_N_ratio = 8.0_dp                                                   ! Lignin to Nitrogen ratio
     real(dp), parameter :: Fm = 0.99_dp - 0.018_dp * L_N_ratio                                  ! Metabolic fraction
+    real(dp), parameter :: Ls = 0.25_dp                                                         ! Fraction of structural C that is lignin
+    real(dp), parameter :: LC = exp(-3.0_dp * Ls)                                               ! Lignin control factor
     real(dp), parameter :: k_struct = 4.8_dp                                                    ! Structural decay rate (/year)
     real(dp), parameter :: k_metabolic = 18.5_dp                                                ! Metabolic decay rate (/year)
-    real(dp), parameter :: fCO2_struct = 0.45_dp                                                ! Fraction of structural litter lost to respiration
-    real(dp), parameter :: fCO2_metabolic = 0.55_dp  
+    real(dp), parameter :: fCO2_struct_lig = 0.3_dp                                             ! Respiration from lignin decay
+    real(dp), parameter :: fCO2_struct_cel = 0.6_dp                                             ! Respiration from cellulose decay
+    real(dp), parameter :: fCO2_metabolic = 0.55_dp                                             ! Respiration from metabolic decay
 
     !---------------------------------------------------------------------------!
     ! Soil layer depth and thickness (mm)
@@ -57,12 +60,12 @@ program toymodel_v1
     ! State variables and fluxes
     !---------------------------------------------------------------------------!
     real(dp), dimension(nlayers) :: litter                                                      ! Input fluxes (kg C/m2/year)
-    real(dp), dimension(nlayers) :: litter_structural, litter_metabolic                         ! New: Litter pools per layer (kg C/m2)
+    real(dp), dimension(nlayers) :: litter_struct_lig, litter_struct_cel, litter_metabolic      ! Litter pools per layer (kg C/m2)
     real(dp), dimension(nlayers) :: SOM_fast, SOM_slow, SOM_passive                             ! Fast/slow/passive SOM pools (kg C/m2)
     real(dp), dimension(nlayers) :: decomp_fast, decomp_slow, decomp_passive                    ! Decomposition fluxes (kg C/m2/year)
-    real(dp), dimension(nlayers) :: decomp_struct, decomp_metabolic                             ! Litter pool decomposition fluxes
+    real(dp), dimension(nlayers) :: decomp_struct_lig, decomp_struct_cel, decomp_metabolic      ! Litter pool decomposition fluxes
     real(dp), dimension(nlayers) :: resp_fast, resp_slow, resp_passive                          ! Respiration losses from fast/slow/passive pools
-    real(dp), dimension(nlayers) :: resp_struct, resp_metabolic                                 ! Respiration from structural/metabolic pools
+    real(dp), dimension(nlayers) :: resp_struct_lig, resp_struct_cel, resp_metabolic            ! Respiration from structural/metabolic pools
     real(dp), dimension(nlayers) :: dSOM_fast, dSOM_slow, dSOM_passive                          ! Net SOM changes per timestep
 
     real(dp) :: mass_start, mass_end, mass_error                                                ! Mass conservation diagnostics
@@ -123,13 +126,14 @@ program toymodel_v1
     SOM_fast(:) = 0.0_dp                                                                        ! Initialize fast pool (kg C/m2)
     SOM_slow(:) = 0.0_dp                                                                        ! Initialize slow pool (kg C/m2)
     SOM_passive(:) = 0.0_dp                                                                     ! Initialize passive pool (kg C/m2)
-    litter_structural(:) = 0.0_dp                                                               ! Initialize structural litter pool (kg C/m2)
+    litter_struct_lig(:) = 0.0_dp                                                               ! Initialize structural lignin litter pool (kg C/m2)
+    litter_struct_cel(:) = 0.0_dp                                                               ! Initialize structural cellulose litter pool (kg C/m2)
     litter_metabolic(:)  = 0.0_dp                                                               ! Initialize metabolic litter pool (kg C/m2)
 
     !---------------------------------------------------------------------------!
     ! Check for depth boundary
     !---------------------------------------------------------------------------!
-    if (z_interface(nlayers+1) >= 9999.0_dp) then
+    if (z_interface(nlayers+1) > 9999.0_dp) then
         write(*,*) 'Warning: Bottom layer interface exceeds 9 m; check boundary condition'
     
     end if
@@ -144,7 +148,8 @@ program toymodel_v1
             ! Mass at start: SOM total plus expected input
             !-------------------------------------------------------------------!
             mass_start = sum(SOM_fast(:)) + sum(SOM_slow(:)) + sum(SOM_passive(:)) + &
-                sum(litter_structural(:)) + sum(litter_metabolic(:)) + dt * input_rate          ! Total expected C before update  (kg C/m2)
+                         sum(litter_struct_lig(:)) + sum(litter_struct_cel(:)) + &
+                         sum(litter_metabolic(:)) + dt * input_rate                             ! Total expected C before update  (kg C/m2)
             
             !-------------------------------------------------------------------!
             ! Reset flux accumulation
@@ -161,20 +166,38 @@ program toymodel_v1
                 !---------------------------------------------------------------!
                 ! Step 0: Partition litter input into structural and metabolic pools
                 !---------------------------------------------------------------!
-                litter_structural(ilayer) = litter_structural(ilayer) + &
-                   (1.0_dp - Fm) * litter(ilayer)                                               ! Add structural fraction of litter input to structural pool
-                
+                litter_struct_lig(ilayer) = litter_struct_lig(ilayer) + Ls * &
+                    (1.0_dp - Fm) * litter(ilayer)                                              ! Add structural lignin fraction of litter input to structural pool
+
+                litter_struct_cel(ilayer) = litter_struct_cel(ilayer) + &
+                    (1.0_dp - Ls) * (1.0_dp - Fm) * litter(ilayer)                              ! Add structural cellulose fraction of litter input to structural pool
+
                 litter_metabolic(ilayer)  = litter_metabolic(ilayer)  + Fm * litter(ilayer)     ! Add metabolic fraction of litter input to metabolic pool
 
                 !---------------------------------------------------------------!
-                ! Step 0.1: Decay of litter pools with respiration and transfers
+                ! Step 1: Structural lignin decomposition -> slow pool
                 !---------------------------------------------------------------!
-                decomp_struct(ilayer) = EM * k_struct * litter_structural(ilayer)               ! Structural litter decay rate (kg C/m2/year)
-                resp_struct(ilayer)   = fCO2_struct * decomp_struct(ilayer)                     ! Respiration from structural decay (kg C/m2/year)
-                SOM_slow(ilayer) = SOM_slow(ilayer) + (1.0_dp - fCO2_struct) * &
-                    decomp_struct(ilayer)                                                       ! Transfer to slow pool (non-respired fraction)
-                
-                litter_structural(ilayer) = litter_structural(ilayer) - decomp_struct(ilayer)   ! Update structural pool after decay
+                decomp_struct_lig(ilayer) = EM * k_struct * LC * litter_struct_lig(ilayer)      ! Structural lignin litter decay rate (kg C/m2/year)
+                resp_struct_lig(ilayer)   = fCO2_struct_lig * decomp_struct_lig(ilayer)         ! Respiration from structural lignin decay (kg C/m2/year)
+                SOM_slow(ilayer) = SOM_slow(ilayer) + (1.0_dp - fCO2_struct_lig) * &
+                    decomp_struct_lig(ilayer)                                                   ! Transfer to slow pool (non-respired fraction)
+
+                litter_struct_lig(ilayer) = litter_struct_lig(ilayer) - &
+                    decomp_struct_lig(ilayer)                                                   ! Update structural lignin pool after decay
+
+                !---------------------------------------------------------------!
+                ! Step 2: Structural cellulose decomposition -> fast pool
+                !---------------------------------------------------------------!
+                decomp_struct_cel(ilayer) = EM * k_struct * LC * litter_struct_cel(ilayer)      ! Structural cellulose litter decay rate (kg C/m2/year)
+                resp_struct_cel(ilayer)   = fCO2_struct_cel * decomp_struct_cel(ilayer)         ! Respiration from structural cellulose decay (kg C/m2/year)
+                SOM_fast(ilayer) = SOM_fast(ilayer) + (1.0_dp - fCO2_struct_cel) * &
+                    decomp_struct_cel(ilayer)                                                   ! Transfer to fast pool (non-respired fraction)			
+                litter_struct_cel(ilayer) = litter_struct_cel(ilayer) - &
+                    decomp_struct_cel(ilayer)                                                   ! Update structural cellulose pool after decay
+
+                !---------------------------------------------------------------!
+                ! Step 3: Metabolic litter decomposition -> fast pool
+                !---------------------------------------------------------------!
 
                 decomp_metabolic(ilayer) = EM * k_metabolic * litter_metabolic(ilayer)          ! Metabolic litter decay rate (kg C/m2/year)
                 resp_metabolic(ilayer)   = fCO2_metabolic * decomp_metabolic(ilayer)            ! Respiration from metabolic decay (kg C/m2/year)
@@ -184,7 +207,7 @@ program toymodel_v1
                 litter_metabolic(ilayer) = litter_metabolic(ilayer) - decomp_metabolic(ilayer)  ! Update metabolic pool after decay
 
                 !---------------------------------------------------------------!
-                ! Step 1: Compute decomposition fluxes
+                ! Step 4: Compute decomposition fluxes
                 !---------------------------------------------------------------!
                 decomp_fast(ilayer) = EM * k_fast * SOM_fast(ilayer)                            ! Fast pool decomposition flux (kg C/m2/year)
                 decomp_slow(ilayer) = EM * k_slow * SOM_slow(ilayer)                            ! Slow pool decomposition flux (kg C/m2/year)
@@ -195,11 +218,11 @@ program toymodel_v1
                 resp_passive(ilayer)  = fCO2_passive * decomp_passive(ilayer)                   ! Passive pool respiration (kg C/m2)
 
                 !---------------------------------------------------------------!
-                ! Step 2.1: Define decomposition-based carbon transfers between pools
+                ! Step 5: Define decomposition-based carbon transfers between pools
                 !---------------------------------------------------------------!                                     
                 fast_to_slow = (1.0_dp - fCO2_fast) * decomp_fast(ilayer)                       ! Non-respired fraction of fast pool decomposition (kg C/m2/year)
-                slow_to_passive = (1.0_dp - fCO2_slow) * CSP * decomp_slow(ilayer)              ! Non-respired fraction of slow pool decay going to fast (1 - CSP) (kg C/m2/year)
-                slow_to_fast = (1.0_dp - fCO2_slow) * (1.0_dp - CSP) * decomp_slow(ilayer)      ! Non-respired fraction of slow pool decay going to passive (CSP) (kg C/m2/year)
+                slow_to_passive = (1.0_dp - fCO2_slow) * CSP * decomp_slow(ilayer)              ! Non-respired fraction of slow pool decay going to passive (CSP) (kg C/m2/year)
+                slow_to_fast = (1.0_dp - fCO2_slow) * (1.0_dp - CSP) * decomp_slow(ilayer)      ! Non-respired fraction of slow pool decay going to fast (1 - CSP) (kg C/m2/year)
                 passive_to_slow = (1.0_dp - fCO2_passive) * decomp_passive(ilayer)              ! Non-respired fraction of passive pool decay returning to slow (kg C/m2/year)
 
                 fast_gain = slow_to_fast                                                        ! Sum of litter input and slow-to-fast return (kg C/m2/year)
@@ -210,9 +233,9 @@ program toymodel_v1
 
                 passive_gain  = slow_to_passive                                                 ! Transfer from slow pool (kg C/m2/year)
                 passive_lose  = decomp_passive(ilayer)                                          ! Total decay from passive pool (kg C/m2/year)
-                
+
                 !---------------------------------------------------------------!
-                ! Step 2.2: Advance SOM pools based on gain and loss fluxes
+                ! Step 6: Advance SOM pools based on gain and loss fluxes
                 !---------------------------------------------------------------! 
 
                 dSOM_fast(ilayer) = fast_gain - fast_lose                                       ! Net change in fast SOM pool (kg C/m2/year)
@@ -220,18 +243,18 @@ program toymodel_v1
                 dSOM_passive(ilayer) = passive_gain - passive_lose                              ! Net change in passive SOM pool (kg C/m2/year)				
 
                 !---------------------------------------------------------------!
-                ! Step 3: Update SOM state (Updated SOM pools; kg C/m2)
+                ! Step 7: Update SOM state (Updated SOM pools; kg C/m2)
                 !---------------------------------------------------------------!
                 SOM_fast(ilayer) = SOM_fast(ilayer) + dt * dSOM_fast(ilayer)                    ! Advance fast SOM pool by net change
                 SOM_slow(ilayer) = SOM_slow(ilayer) + dt * dSOM_slow(ilayer)                    ! Advance slow SOM pool by net change
                 SOM_passive(ilayer) = SOM_passive(ilayer) + dt * dSOM_passive(ilayer)           ! Advance passive SOM pool by net change
         
                 !---------------------------------------------------------------!
-                ! Step 4: Accumulate total respiration				
+                ! Step 8: Accumulate total respiration				
                 !---------------------------------------------------------------!
                 resp_total = resp_total + resp_fast(ilayer) + resp_slow(ilayer) + &
-                    resp_passive(ilayer) + resp_struct(ilayer) + resp_metabolic(ilayer)         ! Accumulate respiration (kg C/m2)
-
+                    resp_passive(ilayer) + resp_struct_lig(ilayer) + &
+                    resp_struct_cel(ilayer) + resp_metabolic(ilayer)                            ! Accumulate respiration (kg C/m2)			
             end do
 
             !-------------------------------------------------------------------!
@@ -292,7 +315,8 @@ program toymodel_v1
             ! Mass conservation diagnostics
             !-------------------------------------------------------------------!
             mass_end = sum(SOM_fast(:)) + sum(SOM_slow(:)) + sum(SOM_passive(:)) + &
-                sum(litter_structural(:)) + sum(litter_metabolic(:)) + dt * resp_total          ! Total C after update (kg C/m2)
+                sum(litter_struct_lig(:)) + sum(litter_struct_cel(:)) + &
+                sum(litter_metabolic(:)) + dt * resp_total                                      ! Total C after update (kg C/m2)
             
             mass_error = abs(mass_end - mass_start)                                             ! Error magnitude		
             

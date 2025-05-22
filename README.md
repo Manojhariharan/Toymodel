@@ -1,3 +1,79 @@
+**Date:** 2025-05-22  Update: Updated the model with structural and metabolic litter pools with CENTURY-style decay dynamics
+
+# toymodel_v1: Multi-Layer CENTURY-Style Soil Carbon Model
+
+This version implement a multi-layer, multi-pool soil organic matter (SOM) model inspired by the CENTURY decomposition framework. The model simulates SOM dynamics over a 6000-year period, accounting for litter input, respiration losses, and redistribution between layers, with mass conservation across pools and layers.
+
+## Features
+- **5 Carbon Pools per Layer**:
+  - Structural litter
+  - Metabolic litter
+  - Fast (microbial-active) SOM
+  - Slow SOM
+  - Passive SOM
+- **CENTURY-style Kinetics**:
+  - Environmental and clay-based modifiers
+  - First-order decomposition with respiration
+  - Inter-pool carbon transfers
+- **Mass-Conserving Redistribution**:
+  - Layered SOM adjusted to match a fixed target density
+  - Bidirectional movement of carbon between adjacent layers
+- **Diagnostics**:
+  - Total respiration and Net Ecosystem Exchange (NEE)
+  - Effective SOM column depth
+  - Layer-wise fast/slow/passive pool evolution
+  - Carbon mass conservation checks
+
+## Key Parameters           
+
+| **Parameter** | **Old** (3-pool model) | **New** (with structural + metabolic litter pools) | **Description** |
+| ------------- | ---------------------- | -------------------------------------------------- | --------------- |
+| `k_fast`      | 1.75 /yr               | Unchanged                                          | Fast SOM decay rate                                             |
+| `k_slow`      | 0.04175 /yr            | Unchanged                                          | Slow SOM decay rate                                             |
+| `k_passive`   | 0.0025 /yr             | Unchanged                                          | Passive SOM decay rate                                          |
+| `fCO2_fast`   | 0.55                   | Unchanged                                          | Respiration from fast SOM pool                                  |
+| `fCO2_slow`   | 0.55                   | Unchanged                                          | Respiration from slow SOM pool                                  |
+| `fCO2_passive`| 0.55                   | Unchanged                                          | Respiration from passive SOM pool                               |
+| `CSP`         | `0.003 - 0.009 * clay_frac` (0.0012 with clay=0.2) | Unchanged              | Slow-to-passive carbon transfer fraction                        |
+| `EM`          | 0.1                    | Unchanged                                          | Environmental modifier                                          |
+| `rho_SOM`     | 50.0 kg C/m3           | Unchanged                                          | Target SOM density for redistribution                           |
+| `input_rate`  | 1.05 kg C/m2/yr        | Unchanged                                          | Annual total litter input                                       |
+| `Fm`          | -                      | ~0.846                                             | Metabolic fraction of litter (computed as `0.99 - 0.018 * L/N`) |
+| `L_N_ratio`   | -                      | 8.0                                                | Lignin-to-nitrogen ratio used to compute `Fm`                   |
+| `k_struct`    | -                      | 4.8 /yr                                            | Decay rate of structural litter                                 |
+| `k_metabolic` | -                      | 18.5 /yr                                           | Decay rate of metabolic litter                                  |
+| `fCO2_struct` | -                      | 0.45                                               | Fraction of structural litter lost to respiration               |
+| `fCO2_metabolic`| -                    | 0.55                                               | Fraction of metabolic litter lost to respiration                |
+| `litter_structural(:)` | -             | New state variable (kg C/m2)                       | Structural litter pool per layer                                |
+| `litter_metabolic(:)`  | -             | New state variable (kg C/m2)                       | Metabolic litter pool per layer                                 |
+| `decomp_struct(:)`     | -             | New flux (kg C/m2/yr)                              | Structural litter decomposition                                 |
+| `decomp_metabolic(:)`  | -             | New flux (kg C/m2/yr)                              | Metabolic litter decomposition                                  |
+| `resp_struct(:)`       | -             | New flux (kg C/m2/yr)                              | Structural litter respiration                                   |
+| `resp_metabolic(:)`    | -             | New flux (kg C/m2/yr)                              | Metabolic litter respiration                                    |
+
+## Output Files
+
+- `Diagnostics.csv`: Annual fast/slow/passive pool values, respiration, NEE, and total SOM depth
+- `LayerwisePools.csv`: Layer-wise pool diagnostics with SOM ratios
+
+## Diagnostics
+
+| **Diagnostics** | **Value** | 
+| --------------- | ---------------|
+| Layer 1 depth  |     45.00 mm |
+| Layer 2 depth   |     46.00 mm|
+| Layer 3 depth   |     75.00 mm|
+| Layer 4 depth   |     123.00 mm|
+| Layer 5 depth   |     204.00 mm|
+| Layer 6 depth   |     336.00 mm|
+| Layer 7 depth  |     554.00 mm|
+| Layer 8 depth   |     295.86 mm|
+| Layer 9 depth  |      0.00 mm|
+ | **Total SOM depth** |    **1678.86 mm**|
+ | **Total SOM**       |     **83.94 kg C/m2**|
+ 
+---
+
 **Date:** 2025-05-20  Update: toymodel_v1: CENTURY-style Multi-Layer 3-Pool SOM Model
 
 This version of the model simulates the dynamics of soil organic matter (SOM) using a CENTURY-inspired decomposition structure with **fast, slow, and passive pools** in a **multi-layer soil profile**. It tracks carbon flows, respiration losses, and maintains mass conservation while redistributing SOM vertically to meet layer-wise density criteria.

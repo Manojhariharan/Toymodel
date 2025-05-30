@@ -1,3 +1,84 @@
+# toymodel_v1: Multi-Layer CENTURY-Style Soil Carbon Model
+
+**Date:** 2025-05-30  
+**Update:** Updated with surface vs. root layer logic and full CENTURY-style inter-pool transfers (CAP, CSP, CSA)
+
+This version implements a CENTURY-style multi-layer soil carbon model with five carbon pools per layer, distinguishing surface and root layer decomposition logic. The model tracks SOM dynamics over 6000 years, incorporating pool-specific respiration, microbial feedbacks, and layerwise redistribution, all with strict mass conservation.
+
+## Features
+
+### 5 Carbon Pools per Layer:
+- Structural litter
+- Metabolic litter
+- Fast (microbial-active) SOM
+- Slow SOM
+- Passive SOM
+
+### Layer-Specific Decomposition Logic:
+- **Surface layer (Layer 1):** Traditional litter decay
+- **Root layers (Layers 2–9):** Includes additional microbial loop and feedback transfers:
+  - Slow -> Fast (CSA)
+  - Fast -> Passive (CAP)
+  - Passive -> Slow
+
+### CENTURY-style Kinetics:
+- First-order decay with pool-specific respiration
+- Environmental modifier scalar (`EM`)
+- Clay-sensitive inter-pool transfers (e.g., CSP, CAP, CSA)
+- Dynamic structural/metabolic litter partitioning (`Fm` based on L/N)
+
+### Mass-Conserving Redistribution:
+- SOM is redistributed between adjacent layers to match fixed density targets
+- Redistribution is bidirectional and proportional to SOM excess/deficit
+
+## Key Parameters
+
+| Parameter         | Previous Version | Current Version                  | Description                                       |
+|------------------|------------------|----------------------------------|---------------------------------------------------|
+| `k_fast`         | 1.75 /yr         | Unchanged                        | Fast SOM decay rate                              |
+| `k_slow`         | 0.04175 /yr      | Unchanged                        | Slow SOM decay rate                              |
+| `k_passive`      | 0.0025 /yr       | Unchanged                        | Passive SOM decay rate                           |
+| `fCO2_fast`      | 0.55             | Unchanged                        | Respiration from fast SOM                        |
+| `fCO2_slow`      | 0.55             | Unchanged                        | Respiration from slow SOM                        |
+| `fCO2_passive`   | 0.55             | Unchanged                        | Respiration from passive SOM                     |
+| `k_struct`       | -                | 4.8 /yr                          | Structural litter decay rate                     |
+| `k_metabolic`    | -                | 18.5 /yr                         | Metabolic litter decay rate                      |
+| `fCO2_struct`    | -                | 0.45                             | Respiration from structural litter               |
+| `fCO2_metabolic` | -                | 0.55                             | Respiration from metabolic litter                |
+| `CAP`            | -                | 0.003 × clay_frac (0.0006)       | Fast -> Passive SOM transfer (root layers only)   |
+| `CSP`            | 0.0012           | 0.009 × clay_frac (0.0018)       | Slow -> Passive transfer                           |
+| `CSA`            | -                | 0.003 × clay_frac (0.0006)       | Slow -> Fast microbial feedback (root layers)     |
+| `EM`             | 0.1              | Unchanged                        | Environmental modifier scalar                    |
+| `rho_SOM`        | 50 kg C/m³       | Unchanged                        | SOM density target for redistribution            |
+| `input_rate`     | 1.05 kg C/m²/yr  | Unchanged                        | Annual total litter input                        |
+| `Fm`             | -                | ~0.846                           | Metabolic fraction of litter                     |
+| `L_N_ratio`      | -                | 8.0                              | Lignin:Nitrogen ratio to compute `Fm`            |
+
+## New Variables and Fluxes
+
+| Name                     | Description                                             |
+|--------------------------|---------------------------------------------------------|
+| `CAP(:)`                 | Fast to passive transfer (root layers only)             |
+| `CSA(:)`                 | Slow to fast microbial loop transfer (root layers)      |
+| `flux_passive_to_slow(:)`| Passive to slow feedback (root layers only)             |
+| `decomp_struct(:)`       | Structural litter decomposition flux                    |
+| `decomp_metabolic(:)`    | Metabolic litter decomposition flux                     |
+| `resp_struct(:)`         | Respiration loss from structural litter                 |
+| `resp_metabolic(:)`      | Respiration loss from metabolic litter                  |
+| `resp_fast(:)`           | Respiration from fast pool                              |
+| `resp_slow(:)`           | Respiration from slow pool                              |
+| `resp_passive(:)`        | Respiration from passive pool                           |
+
+## Diagnostics
+
+| Metric              | Value           |
+|---------------------|-----------------|
+| Total SOM             | 131.51 kg C/m² |
+| Total SOM Depth       | 2630.03 mm     |
+| Layer 9 Depth         | 913.02 mm      |
+
+---
+
 **Date:** 2025-05-22  Update: Updated the model with structural and metabolic litter pools with CENTURY-style decay dynamics
 
 # toymodel_v1: Multi-Layer CENTURY-Style Soil Carbon Model
